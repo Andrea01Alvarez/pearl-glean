@@ -22,6 +22,7 @@ import { CreateProductDto } from './dto/create-product.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
 import { Product } from './entities/product.entity';
 import { imageFileFilter, imageStorage } from './multer.config';
+import { FileInterceptor } from '@nestjs/platform-express';
 
 @Controller('products')
 export class ProductsController {
@@ -57,8 +58,20 @@ export class ProductsController {
   }
 
   @Post()
-  async create(@Body() createProductDto: CreateProductDto): Promise<Product> {
+  @UseInterceptors(
+    FileInterceptor('image', {
+      storage: imageStorage,
+      fileFilter: imageFileFilter,
+    }),
+  )
+  async create(
+    @Body() createProductDto: CreateProductDto,
+    @UploadedFile() file?: Express.Multer.File,
+  ): Promise<Product> {
     try {
+      if (file) {
+        createProductDto.imageUrl = `/uploads/${file.filename}`;
+      }
       this.logger.debug(`Creando nuevo producto: ${createProductDto.name}`);
       return await this.productsService.create(createProductDto);
     } catch (error) {
