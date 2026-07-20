@@ -2,7 +2,9 @@ import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { ProductsModule } from './products/products.module';
+import { PromotionsModule } from './promotions/promotions.module';
 import { Product } from './products/entities/product.entity';
+import { Promotion } from './promotions/entities/promotion.entity';
 
 @Module({
   imports: [
@@ -11,18 +13,35 @@ import { Product } from './products/entities/product.entity';
     }),
     TypeOrmModule.forRootAsync({
       inject: [ConfigService],
-      useFactory: (config: ConfigService) => ({
-        type: 'postgres',
-        host: config.get('DB_HOST'),
-        port: config.get<number>('DB_PORT'),
-        username: config.get('DB_USER'),
-        password: config.get('DB_PASSWORD'),
-        database: config.get('DB_NAME'),
-        entities: [Product],
-        synchronize: true,
-      }),
+      useFactory: (config: ConfigService) => {
+        const databaseUrl = config.get('DATABASE_URL');
+
+        // Si hay DATABASE_URL (Neon/nube), usar esa
+        if (databaseUrl) {
+          return {
+            type: 'postgres' as const,
+            url: databaseUrl,
+            ssl: { rejectUnauthorized: false },
+            entities: [Product, Promotion],
+            synchronize: true,
+          };
+        }
+
+        // Si no, usar variables individuales (local)
+        return {
+          type: 'postgres' as const,
+          host: config.get('DB_HOST'),
+          port: config.get<number>('DB_PORT'),
+          username: config.get('DB_USER'),
+          password: config.get('DB_PASSWORD'),
+          database: config.get('DB_NAME'),
+          entities: [Product, Promotion],
+          synchronize: true,
+        };
+      },
     }),
     ProductsModule,
+    PromotionsModule,
   ],
 })
 export class AppModule {}
