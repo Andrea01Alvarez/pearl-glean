@@ -8,9 +8,12 @@
 // ============================================================================
 // CONFIGURACIÓN
 // ============================================================================
+const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+const BACKEND = isLocal ? 'http://localhost:3300' : 'https://pearl-glean.onrender.com';
+
 const CONFIG = {
-  API_BASE_URL: 'http://localhost:3300/api',
-  BACKEND_URL: 'http://localhost:3300',
+  API_BASE_URL: `${BACKEND}/api`,
+  BACKEND_URL: BACKEND,
   API_TIMEOUT: 10000,
   WHATSAPP_NUMBER: '50496310509',
 };
