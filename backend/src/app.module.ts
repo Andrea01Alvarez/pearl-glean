@@ -1,6 +1,6 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
-import { TypeOrmModule } from '@nestjs/typeorm';
+import { TypeOrmModule, TypeOrmModuleOptions } from '@nestjs/typeorm';
 import { ProductsModule } from './products/products.module';
 import { PromotionsModule } from './promotions/promotions.module';
 import { Product } from './products/entities/product.entity';
@@ -13,13 +13,13 @@ import { Promotion } from './promotions/entities/promotion.entity';
     }),
     TypeOrmModule.forRootAsync({
       inject: [ConfigService],
-      useFactory: (config: ConfigService) => {
+      useFactory: (config: ConfigService): TypeOrmModuleOptions => {
         const databaseUrl = config.get('DATABASE_URL');
 
         // Si hay DATABASE_URL (Neon/nube), usar esa
         if (databaseUrl) {
           return {
-            type: 'postgres' as const,
+            type: 'postgres',
             url: databaseUrl,
             ssl: { rejectUnauthorized: false },
             entities: [Product, Promotion],
@@ -29,7 +29,7 @@ import { Promotion } from './promotions/entities/promotion.entity';
 
         // Si no, usar variables individuales (local)
         return {
-          type: 'postgres' as const,
+          type: 'postgres',
           host: config.get('DB_HOST'),
           port: config.get<number>('DB_PORT'),
           username: config.get('DB_USER'),
