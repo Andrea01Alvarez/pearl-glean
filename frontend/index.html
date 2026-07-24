@@ -9,6 +9,24 @@
     />
     <meta name="theme-color" content="#141210" />
     <title>Pearl Glean - Joyería Fina</title>
+    <script>
+      // Detectar base path para SPA
+      (function () {
+        var p = location.pathname;
+        var base;
+        if (p.endsWith('.html')) {
+          base = p.substring(0, p.lastIndexOf('/') + 1);
+        } else if (p.indexOf('/pearl-glean/') !== -1) {
+          base = p.substring(0, p.indexOf('/pearl-glean/')) + '/pearl-glean/';
+        } else {
+          base = '/';
+        }
+        window.__SPA_BASE = base;
+        var b = document.createElement('base');
+        b.href = base;
+        document.head.appendChild(b);
+      })();
+    </script>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link
       href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,500;0,600;1,400&family=Montserrat:wght@300;400;500&display=swap"
@@ -21,60 +39,19 @@
       <!-- NAVEGACIÓN -->
       <nav class="navbar">
         <div class="navbar-left">
-          <div class="logo">
+          <a href="/" data-link class="logo">
             <span class="logo-pearl">PEARL</span>
             <span class="logo-glean">GLEAN</span>
-          </div>
+          </a>
         </div>
         <div class="navbar-right">
-          <a href="#coleccion" class="nav-link" onclick="filterByAll(event)">PRODUCTOS</a>
-          <a href="#coleccion" class="nav-link" onclick="filterByOffers(event)">OFERTAS</a>
-          <a href="https://wa.me/50496310509" target="_blank" class="nav-btn"
-            >ESCRÍBENOS</a
-          >
+          <a href="/productos" class="nav-link" data-link>PRODUCTOS</a>
+          <a href="/ofertas" class="nav-link" data-link>OFERTAS</a>
         </div>
       </nav>
 
-      <!-- HERO SECTION -->
-      <section class="hero">
-        <div class="hero-content">
-          <span class="hero-label">JOYERÍA FINA · HONDURAS</span>
-          <h1 class="hero-title">Piezas que se llevan como un legado.</h1>
-          <p class="hero-text">
-            Collares, aretes y pulseras diseñados. Precios claros en lempiras,
-            entrega coordinada por WhatsApp.
-          </p>
-          <div class="hero-buttons">
-            <a href="#coleccion" class="btn btn-primary">VER LA COLECCIÓN</a>
-            <a
-              href="https://wa.me/50496310509"
-              target="_blank"
-              class="btn btn-secondary"
-              >HABLAR POR WHATSAPP</a
-            >
-          </div>
-        </div>
-        <div class="hero-image">
-          <img src="images/imagen_principal.jpeg" alt="Joyería Pearl Glean" />
-        </div>
-      </section>
-
-      <!-- CATÁLOGO -->
-      <section id="coleccion" class="catalog">
-        <div class="catalog-header">
-          <h2>Colección</h2>
-          <div class="filters">
-            <a href="#" class="filter-btn active" data-filter="todos">TODOS</a>
-            <a href="#" class="filter-btn" data-filter="collar">COLLARES</a>
-            <a href="#" class="filter-btn" data-filter="aretes">ARETES</a>
-            <a href="#" class="filter-btn" data-filter="pulsera">PULSERAS</a>
-          </div>
-        </div>
-
-        <div id="products-grid" class="products-grid">
-          <div class="skeleton">Cargando productos...</div>
-        </div>
-      </section>
+      <!-- CONTENIDO DINÁMICO (el router renderiza aquí) -->
+      <main id="app-view"></main>
 
       <!-- FOOTER -->
       <footer id="contacto" class="footer">
@@ -145,44 +122,7 @@
       </footer>
     </div>
 
-    <!-- MODAL DE DETALLE -->
-    <div id="detail-modal" class="modal hidden">
-      <div class="modal-content">
-        <div class="modal-header">
-          <div class="modal-logo">
-            <span class="logo-pearl">PEARL</span>
-            <span class="logo-glean">GLEAN</span>
-          </div>
-          <a href="#" class="modal-close">&larr; VOLVER A LA COLECCIÓN</a>
-        </div>
-        <div class="modal-body">
-          <div class="modal-image">
-            <span id="modal-image-placeholder">FOTO DEL PRODUCTO</span>
-          </div>
-          <div class="modal-info">
-            <div id="modal-category" class="modal-category"></div>
-            <h1 id="modal-name" class="modal-name"></h1>
-            <div id="modal-promo" class="modal-promo" style="display:none"></div>
-            <div id="modal-price" class="modal-price"></div>
-            <p id="modal-description" class="modal-description"></p>
-            <div id="modal-details" class="modal-details"></div>
-            <div class="modal-buttons">
-              <a
-                id="modal-whatsapp"
-                href="#"
-                target="_blank"
-                class="btn btn-primary"
-                >COMPRAR POR WHATSAPP</a
-              >
-              <a href="#" class="btn btn-secondary modal-close-btn"
-                >VER MÁS PIEZAS</a
-              >
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-
+    <script src="./router.js" defer></script>
     <script src="./app.js" defer></script>
   </body>
 </html>

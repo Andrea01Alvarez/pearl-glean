@@ -1,6 +1,6 @@
 /**
- * Pearl Glean - Aplicación de Catálogo de Joyería
- * Frontend JavaScript - Gestión de productos y UI
+ * Pearl Glean - SPA de Catálogo de Joyería
+ * Frontend JavaScript con Router History API
  */
 
 'use strict';
@@ -8,8 +8,12 @@
 // ============================================================================
 // CONFIGURACIÓN
 // ============================================================================
-const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
-const BACKEND = isLocal ? 'http://localhost:3300' : 'https://pearl-glean.onrender.com';
+const isLocal =
+  window.location.hostname === 'localhost' ||
+  window.location.hostname === '127.0.0.1';
+const BACKEND = isLocal
+  ? 'http://localhost:3300'
+  : 'https://pearl-glean.onrender.com';
 
 const CONFIG = {
   API_BASE_URL: `${BACKEND}/api`,
@@ -25,64 +29,274 @@ const AppState = {
   products: [],
   currentFilter: 'todos',
   isLoading: false,
-  isModalOpen: false,
 };
 
 // ============================================================================
-// ELEMENTOS DEL DOM
+// ROUTER — DEFINICIÓN DE RUTAS
 // ============================================================================
-const DOM = {
-  productsGrid: document.getElementById('products-grid'),
-  filterBtns: document.querySelectorAll('.filter-btn'),
-  detailModal: document.getElementById('detail-modal'),
-  modalClose: document.querySelector('.modal-close'),
-  modalCloseBtn: document.querySelector('.modal-close-btn'),
-};
+const router = new Router();
 
-// Validar que los elementos del DOM existan
-function validateDOM() {
-  const required = ['productsGrid', 'detailModal'];
-  const missing = required.filter((key) => !DOM[key]);
+router.add('/', viewHome);
+router.add('/productos', viewProductos);
+router.add('/ofertas', viewOfertas);
+router.add('/contacto', viewContacto);
+router.add('/producto/:id', viewProductoDetalle);
 
-  if (missing.length > 0) {
-    console.error('Elementos del DOM faltantes:', missing);
-    return false;
-  }
-  return true;
-}
+router.onNavigate = updateActiveNavLink;
 
 // ============================================================================
 // INICIALIZACIÓN
 // ============================================================================
-document.addEventListener('DOMContentLoaded', () => {
-  if (!validateDOM()) {
-    showError('Error de configuración del DOM');
-    return;
-  }
-
-  setupEventListeners();
-  fetchProducts();
+document.addEventListener('DOMContentLoaded', async () => {
+  await fetchProducts();
+  router.init();
 });
 
 // ============================================================================
-// EVENT LISTENERS
+// VISTAS (ROUTE HANDLERS)
 // ============================================================================
-function setupEventListeners() {
-  // Filtros
-  DOM.filterBtns.forEach((btn) => {
-    btn.addEventListener('click', handleFilterClick);
+function viewHome() {
+  const view = document.getElementById('app-view');
+  view.innerHTML = getHeroHTML() + getCatalogHTML();
+  AppState.currentFilter = 'todos';
+  setupCatalogEvents();
+  renderProducts();
+  window.scrollTo(0, 0);
+}
+
+function viewProductos() {
+  const view = document.getElementById('app-view');
+  view.innerHTML = getCatalogHTML();
+  AppState.currentFilter = 'todos';
+  setupCatalogEvents();
+  renderProducts();
+  window.scrollTo(0, 0);
+}
+
+function viewOfertas() {
+  const view = document.getElementById('app-view');
+  view.innerHTML = getCatalogHTML('Ofertas', false, true);
+  AppState.currentFilter = 'ofertas';
+  renderProducts();
+  window.scrollTo(0, 0);
+}
+
+function viewContacto() {
+  const view = document.getElementById('app-view');
+  view.innerHTML = getContactoHTML();
+  window.scrollTo(0, 0);
+}
+
+async function viewProductoDetalle(params) {
+  const view = document.getElementById('app-view');
+
+  if (AppState.products.length === 0) {
+    view.innerHTML = '<div class="skeleton">Cargando producto...</div>';
+    await fetchProducts();
+  }
+
+  const product = AppState.products.find(
+    (p) => String(p.id) === String(params.id),
+  );
+
+  if (!product) {
+    view.innerHTML =
+      '<div class="detail-not-found"><h2>Producto no encontrado</h2><a href="/productos" data-link class="btn btn-secondary">VER LA COLECCIÓN</a></div>';
+    return;
+  }
+
+  view.innerHTML = getProductDetailHTML(product);
+  window.scrollTo(0, 0);
+}
+
+// ============================================================================
+// PLANTILLAS HTML
+// ============================================================================
+function getHeroHTML() {
+  return `
+    <section class="hero">
+      <div class="hero-content">
+        <span class="hero-label">JOYERÍA FINA · HONDURAS</span>
+        <h1 class="hero-title">Piezas que se llevan como un legado.</h1>
+        <p class="hero-text">
+          Collares, aretes y pulseras diseñados. Precios claros en lempiras,
+          entrega coordinada por WhatsApp.
+        </p>
+        <div class="hero-buttons">
+          <a href="/productos" class="btn btn-primary" data-link>VER LA COLECCIÓN</a>
+          <a href="https://wa.me/${CONFIG.WHATSAPP_NUMBER}" target="_blank" class="btn btn-secondary">HABLAR POR WHATSAPP</a>
+        </div>
+      </div>
+      <div class="hero-image">
+        <img src="./images/imagen_principal.jpeg" alt="Joyería Pearl Glean" />
+      </div>
+    </section>`;
+}
+
+function getCatalogHTML(title = 'Colección', showFilters = true, showFilterTag = false) {
+  const filtersHTML = showFilters
+    ? `
+      <div class="filters">
+        <a href="#" class="filter-btn active" data-filter="todos">TODOS</a>
+        <a href="#" class="filter-btn" data-filter="collar">COLLARES</a>
+        <a href="#" class="filter-btn" data-filter="aretes">ARETES</a>
+        <a href="#" class="filter-btn" data-filter="pulsera">PULSERAS</a>
+      </div>`
+    : '';
+
+  const filterTagHTML = showFilterTag
+    ? `<a href="/" data-link class="filter-tag">&larr; Volver al inicio</a>`
+    : '';
+
+  return `
+    <section class="catalog">
+      <div class="catalog-header">
+        <h2>${title} ${filterTagHTML}</h2>
+        ${filtersHTML}
+      </div>
+      <div id="products-grid" class="products-grid">
+        <div class="skeleton">Cargando productos...</div>
+      </div>
+    </section>`;
+}
+
+function getContactoHTML() {
+  return `
+    <section class="contacto-page">
+      <h2>Contacto</h2>
+      <p class="contacto-text">
+        ¿Tienes preguntas sobre nuestras piezas? Escríbenos directamente
+        por WhatsApp o síguenos en redes sociales.
+      </p>
+      <div class="contacto-links">
+        <a href="https://wa.me/${CONFIG.WHATSAPP_NUMBER}" target="_blank" class="contacto-item">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.3">
+            <path d="M21 11.5a8.5 8.5 0 0 1-12.4 7.5L3 20l1.1-5.4A8.5 8.5 0 1 1 21 11.5z"></path>
+          </svg>
+          <div>
+            <div class="contacto-label">WHATSAPP</div>
+            <div class="contacto-value">+504 9631-0509</div>
+          </div>
+        </a>
+        <a href="https://instagram.com" target="_blank" class="contacto-item">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.3">
+            <rect x="3" y="3" width="18" height="18" rx="5"></rect>
+            <circle cx="12" cy="12" r="4"></circle>
+            <circle cx="17.5" cy="6.5" r="1"></circle>
+          </svg>
+          <div>
+            <div class="contacto-label">INSTAGRAM</div>
+            <div class="contacto-value">@pearlglean</div>
+          </div>
+        </a>
+        <a href="https://facebook.com" target="_blank" class="contacto-item">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.3">
+            <path d="M14 9h3V6h-3c-2 0-3.5 1.5-3.5 3.5V12H8v3h2.5v6h3v-6H16l.5-3h-3V9.6c0-.4.4-.6.5-.6z"></path>
+          </svg>
+          <div>
+            <div class="contacto-label">FACEBOOK</div>
+            <div class="contacto-value">Pearl Glean</div>
+          </div>
+        </a>
+      </div>
+    </section>`;
+}
+
+function getProductDetailHTML(product) {
+  const category = (product.category || 'Sin categoría').toUpperCase();
+  const name = escapeHtml(product.name || 'Producto sin nombre');
+  const description = escapeHtml(
+    product.description || 'Sin descripción disponible',
+  );
+  const price = formatLempiras(product.price);
+
+  const imageHTML = product.imageUrl
+    ? `<img src="${escapeHtml(resolveImageUrl(product.imageUrl))}" alt="${name}" />`
+    : '<span>FOTO DEL PRODUCTO</span>';
+
+  const promo = getActivePromotion(product);
+
+  let priceHTML = `<div class="detail-price">${price}</div>`;
+  let promoHTML = '';
+
+  if (promo && promo.discountPercentage > 0) {
+    const discounted = product.price * (1 - promo.discountPercentage / 100);
+    priceHTML = `<div class="detail-price">
+      <span class="modal-price-original">${price}</span> <span class="price-discounted">${formatLempiras(discounted)}</span>
+    </div>`;
+    promoHTML = `<div class="modal-promo promo-green">${escapeHtml(promo.name)} — ${parseFloat(promo.discountPercentage)}% de descuento</div>`;
+  } else if (promo && promo.label) {
+    promoHTML = `<div class="modal-promo promo-green">${escapeHtml(promo.name)} — ${escapeHtml(promo.label)}</div>`;
+  }
+
+  const details = [];
+  if (product.material) {
+    details.push(
+      `<div class="modal-detail-item"><span class="detail-label">Material</span><span class="detail-value">${escapeHtml(product.material)}</span></div>`,
+    );
+  }
+  if (product.dimensions) {
+    details.push(
+      `<div class="modal-detail-item"><span class="detail-label">Dimensiones</span><span class="detail-value">${escapeHtml(product.dimensions)}</span></div>`,
+    );
+  }
+  if (product.stock !== null && product.stock !== undefined) {
+    const stockText =
+      product.stock > 0
+        ? `${product.stock} disponible${product.stock > 1 ? 's' : ''}`
+        : 'Agotado';
+    details.push(
+      `<div class="modal-detail-item"><span class="detail-label">Stock</span><span class="detail-value">${stockText}</span></div>`,
+    );
+  }
+
+  const detailsHTML =
+    details.length > 0
+      ? `<div class="modal-details">${details.join('')}</div>`
+      : '';
+
+  return `
+    <section class="product-detail-view">
+      <div class="detail-header">
+        <a href="/" data-link class="detail-back">&larr; VOLVER AL INICIO</a>
+      </div>
+      <div class="detail-body">
+        <div class="detail-image">${imageHTML}</div>
+        <div class="detail-info">
+          <div class="modal-category">${category}</div>
+          <h1 class="modal-name">${name}</h1>
+          ${promoHTML}
+          ${priceHTML}
+          <p class="modal-description">${description}</p>
+          ${detailsHTML}
+          <div class="modal-buttons">
+            <a href="${generateWhatsAppLink(product)}" target="_blank" class="btn btn-primary">COMPRAR POR WHATSAPP</a>
+            <a href="/productos" data-link class="btn btn-secondary">VER MÁS PIEZAS</a>
+          </div>
+        </div>
+      </div>
+    </section>`;
+}
+
+// ============================================================================
+// NAVEGACIÓN ACTIVA
+// ============================================================================
+function updateActiveNavLink() {
+  const path = window.location.pathname;
+  document.querySelectorAll('.navbar .nav-link').forEach((link) => {
+    const href = link.getAttribute('href');
+    const isActive =
+      href === path || (href !== '/' && path.startsWith(href));
+    link.classList.toggle('active', isActive);
   });
+}
 
-  // Modal
-  DOM.modalClose?.addEventListener('click', closeModal);
-  DOM.modalCloseBtn?.addEventListener('click', closeModal);
-  DOM.detailModal?.addEventListener('click', handleModalBackdropClick);
-
-  // Teclado - cerrar modal con ESC
-  document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape' && AppState.isModalOpen) {
-      closeModal();
-    }
+// ============================================================================
+// EVENTOS DEL CATÁLOGO
+// ============================================================================
+function setupCatalogEvents() {
+  document.querySelectorAll('.filter-btn').forEach((btn) => {
+    btn.addEventListener('click', handleFilterClick);
   });
 }
 
@@ -94,18 +308,11 @@ function handleFilterClick(e) {
   }
 }
 
-function handleModalBackdropClick(e) {
-  if (e.target === DOM.detailModal) {
-    closeModal();
-  }
-}
-
 // ============================================================================
 // FETCH DE DATOS
 // ============================================================================
 async function fetchProducts() {
   AppState.isLoading = true;
-  showLoadingState();
 
   try {
     const controller = new AbortController();
@@ -113,9 +320,7 @@ async function fetchProducts() {
 
     const response = await fetch(`${CONFIG.API_BASE_URL}/products`, {
       method: 'GET',
-      headers: {
-        'Content-Type': 'application/json',
-      },
+      headers: { 'Content-Type': 'application/json' },
       signal: controller.signal,
     });
 
@@ -132,35 +337,25 @@ async function fetchProducts() {
     }
 
     AppState.products = data;
-    renderProducts();
   } catch (error) {
-    handleFetchError(error);
+    console.error('Error al cargar productos:', error);
+
+    let message = 'Error al cargar los productos.';
+    if (error.name === 'AbortError') {
+      message =
+        'La solicitud tardó demasiado. Por favor, verifica la conexión.';
+    } else if (error instanceof TypeError) {
+      message =
+        'No se pudo conectar al servidor. ¿Está ejecutándose el backend en localhost:3300?';
+    }
+
+    const grid = document.getElementById('products-grid');
+    if (grid) {
+      grid.innerHTML = `<div class="skeleton">${escapeHtml(message)}</div>`;
+    }
   } finally {
     AppState.isLoading = false;
   }
-}
-
-function handleFetchError(error) {
-  console.error('Error al cargar productos:', error);
-
-  let message = 'Error al cargar los productos.';
-
-  if (error.name === 'AbortError') {
-    message = 'La solicitud tardó demasiado. Por favor, verifica la conexión.';
-  } else if (error instanceof TypeError) {
-   message = 'No se pudo conectar al servidor. ¿Está ejecutándose el backend en localhost:3300?';
-  }
-
-  showError(message);
-}
-
-function showLoadingState() {
-  DOM.productsGrid.innerHTML =
-    '<div class="skeleton">⏳ Cargando productos...</div>';
-}
-
-function showError(message) {
-  DOM.productsGrid.innerHTML = `<div class="skeleton">❌ ${escapeHtml(message)}</div>`;
 }
 
 // ============================================================================
@@ -168,10 +363,7 @@ function showError(message) {
 // ============================================================================
 function setFilter(filter) {
   filter = filter.toLowerCase().trim();
-
-  if (AppState.currentFilter === filter) {
-    return;
-  }
+  if (AppState.currentFilter === filter) return;
 
   AppState.currentFilter = filter;
   updateFilterButtons();
@@ -179,27 +371,28 @@ function setFilter(filter) {
 }
 
 function updateFilterButtons() {
-  DOM.filterBtns.forEach((btn) => {
+  document.querySelectorAll('.filter-btn').forEach((btn) => {
     const isActive = btn.dataset.filter === AppState.currentFilter;
     btn.classList.toggle('active', isActive);
   });
 }
 
 function renderProducts() {
+  const grid = document.getElementById('products-grid');
+  if (!grid) return;
+
   const filtered = getFilteredProducts();
 
   if (filtered.length === 0) {
-    const msg = AppState.currentFilter === 'ofertas'
-      ? 'No hay ofertas activas en este momento.'
-      : 'No hay productos en esta categoría.';
-    DOM.productsGrid.innerHTML = `<div class="skeleton">${msg}</div>`;
+    const msg =
+      AppState.currentFilter === 'ofertas'
+        ? 'No hay ofertas activas en este momento.'
+        : 'No hay productos en esta categoría.';
+    grid.innerHTML = `<div class="skeleton">${msg}</div>`;
     return;
   }
 
-  DOM.productsGrid.innerHTML = filtered
-    .map((product) => createProductCard(product))
-    .join('');
-
+  grid.innerHTML = filtered.map((p) => createProductCard(p)).join('');
   attachProductEventListeners();
 }
 
@@ -213,51 +406,36 @@ function getFilteredProducts() {
   }
 
   return AppState.products.filter(
-    (p) => p.category && p.category.toLowerCase() === AppState.currentFilter
+    (p) => p.category && p.category.toLowerCase() === AppState.currentFilter,
   );
 }
 
-function filterByAll(e) {
-  e.preventDefault();
-  setFilter('todos');
-  document.getElementById('coleccion')?.scrollIntoView({ behavior: 'smooth' });
-}
-
-function filterByOffers(e) {
-  e.preventDefault();
-  setFilter('ofertas');
-  document.getElementById('coleccion')?.scrollIntoView({ behavior: 'smooth' });
-}
-
 function attachProductEventListeners() {
-  // Click en tarjeta
   document.querySelectorAll('.product-card').forEach((card) => {
     card.addEventListener('click', (e) => {
       if (!e.target.closest('.product-footer a')) {
         const productId = card.dataset.productId;
-        showProductDetail(productId);
+        router.navigate(`/producto/${productId}`);
       }
     });
   });
 
-  // Click en "VER DETALLE"
   document.querySelectorAll('.product-footer a').forEach((link) => {
     link.addEventListener('click', (e) => {
       e.preventDefault();
       e.stopPropagation();
       const productId = link.closest('.product-card')?.dataset.productId;
       if (productId) {
-        showProductDetail(productId);
+        router.navigate(`/producto/${productId}`);
       }
     });
   });
 }
 
 // ============================================================================
-// CREAR ELEMENTOS
+// CREAR TARJETA DE PRODUCTO
 // ============================================================================
 function createProductCard(product) {
-  // Validar datos del producto
   if (!product.id || !product.name || product.price === undefined) {
     console.warn('Producto inválido:', product);
     return '';
@@ -271,11 +449,9 @@ function createProductCard(product) {
     ? `<img src="${escapeHtml(resolveImageUrl(product.imageUrl))}" alt="${name}" loading="lazy" />`
     : `<span>FOTO<br/>${name}</span>`;
 
-  // Promoción activa
   const promo = getActivePromotion(product);
   let priceHtml = '';
   let badgeHtml = '';
-
   let promoHtml = '';
 
   if (promo && promo.discountPercentage > 0) {
@@ -305,120 +481,11 @@ function createProductCard(product) {
         ${promoHtml}
         <div class="product-footer">
           ${priceHtml}
-          <a href="#">VER DETALLE</a>
+          <a href="/producto/${escapeHtml(product.id)}" data-link>VER DETALLE</a>
         </div>
       </div>
     </div>
   `;
-}
-
-// ============================================================================
-// MODAL DE DETALLE
-// ============================================================================
-function showProductDetail(productId) {
-  const product = AppState.products.find((p) => p.id === productId);
-
-  if (!product) {
-    console.warn('Producto no encontrado:', productId);
-    return;
-  }
-
-  // Llenar modal
-  const category = (product.category || 'Sin categoría').toUpperCase();
-  const name = product.name || 'Producto sin nombre';
-  const price = formatLempiras(product.price);
-  const description = product.description || 'Sin descripción disponible';
-
-  // Imagen del modal
-  const modalImageContainer = document.querySelector('.modal-image');
-  if (modalImageContainer) {
-    if (product.imageUrl) {
-      modalImageContainer.innerHTML = `<img src="${escapeHtml(resolveImageUrl(product.imageUrl))}" alt="${escapeHtml(name)}" />`;
-    } else {
-      modalImageContainer.innerHTML = `<span id="modal-image-placeholder">FOTO DEL PRODUCTO</span>`;
-    }
-  }
-
-  document.getElementById('modal-category').textContent = category;
-  document.getElementById('modal-name').textContent = name;
-  document.getElementById('modal-description').textContent = description;
-
-  // Precio con o sin descuento en el modal
-  const modalPriceEl = document.getElementById('modal-price');
-  const promo = getActivePromotion(product);
-  // Mostrar nombre de la promoción
-  const modalPromoEl = document.getElementById('modal-promo');
-  if (modalPromoEl) {
-    if (promo) {
-      const promoText = promo.discountPercentage > 0
-        ? `${escapeHtml(promo.name)} — ${parseFloat(promo.discountPercentage)}% de descuento`
-        : promo.label ? `${escapeHtml(promo.name)} — ${escapeHtml(promo.label)}` : escapeHtml(promo.name);
-      modalPromoEl.innerHTML = promoText;
-      modalPromoEl.style.display = 'block';
-    } else {
-      modalPromoEl.innerHTML = '';
-      modalPromoEl.style.display = 'none';
-    }
-  }
-
-  if (promo && promo.discountPercentage > 0) {
-    const discounted = product.price * (1 - promo.discountPercentage / 100);
-    modalPriceEl.innerHTML = `<span class="modal-price-original">${price}</span> ${formatLempiras(discounted)}`;
-  } else {
-    modalPriceEl.textContent = price;
-  }
-
-  // Campos adicionales: material, dimensiones, stock
-  const detailsContainer = document.getElementById('modal-details');
-  if (detailsContainer) {
-    const details = [];
-    if (product.material) {
-      details.push(`<div class="modal-detail-item"><span class="detail-label">Material</span><span class="detail-value">${escapeHtml(product.material)}</span></div>`);
-    }
-    if (product.dimensions) {
-      details.push(`<div class="modal-detail-item"><span class="detail-label">Dimensiones</span><span class="detail-value">${escapeHtml(product.dimensions)}</span></div>`);
-    }
-    if (product.stock !== null && product.stock !== undefined) {
-      const stockText = product.stock > 0 ? `${product.stock} disponible${product.stock > 1 ? 's' : ''}` : 'Agotado';
-      details.push(`<div class="modal-detail-item"><span class="detail-label">Stock</span><span class="detail-value">${stockText}</span></div>`);
-    }
-    detailsContainer.innerHTML = details.length > 0 ? details.join('') : '';
-  }
-
-  const whatsappLink = document.getElementById('modal-whatsapp');
-  if (whatsappLink) {
-    whatsappLink.href = generateWhatsAppLink(product);
-  }
-
-  openModal();
-}
-
-function openModal() {
-  DOM.detailModal?.classList.remove('hidden');
-  AppState.isModalOpen = true;
-  document.body.style.overflow = 'hidden';
-}
-
-function closeModal() {
-  DOM.detailModal?.classList.add('hidden');
-  AppState.isModalOpen = false;
-  document.body.style.overflow = 'auto';
-}
-
-// ============================================================================
-// WHATSAPP
-// ============================================================================
-function generateWhatsAppLink(product) {
-  if (!product.name || product.price === undefined || product.price === null) {
-    return '#';
-  }
-
-  const price = formatLempiras(product.price);
-  const message = encodeURIComponent(
-    `Hola, me interesa "${product.name}" (${price}). ¿Está disponible?`
-  );
-
-  return `https://wa.me/${CONFIG.WHATSAPP_NUMBER}?text=${message}`;
 }
 
 // ============================================================================
@@ -432,13 +499,30 @@ function getActivePromotion(product) {
   const now = new Date();
   now.setHours(0, 0, 0, 0);
 
-  // Buscar la primera promoción activa y vigente
-  return product.promotions.find((promo) => {
-    if (!promo.isActive) return false;
-    if (promo.startDate && new Date(promo.startDate) > now) return false;
-    if (promo.endDate && new Date(promo.endDate) < now) return false;
-    return true;
-  }) || null;
+  return (
+    product.promotions.find((promo) => {
+      if (!promo.isActive) return false;
+      if (promo.startDate && new Date(promo.startDate) > now) return false;
+      if (promo.endDate && new Date(promo.endDate) < now) return false;
+      return true;
+    }) || null
+  );
+}
+
+// ============================================================================
+// WHATSAPP
+// ============================================================================
+function generateWhatsAppLink(product) {
+  if (!product.name || product.price === undefined || product.price === null) {
+    return '#';
+  }
+
+  const price = formatLempiras(product.price);
+  const message = encodeURIComponent(
+    `Hola, me interesa "${product.name}" (${price}). ¿Está disponible?`,
+  );
+
+  return `https://wa.me/${CONFIG.WHATSAPP_NUMBER}?text=${message}`;
 }
 
 // ============================================================================
@@ -461,9 +545,7 @@ function formatLempiras(price) {
 
 function resolveImageUrl(imageUrl) {
   if (!imageUrl) return '';
-  // Si ya es una URL completa (Cloudinary, etc.), usarla tal cual
   if (imageUrl.startsWith('http')) return imageUrl;
-  // Si es ruta relativa del backend (/uploads/...), agregar la URL del backend
   return CONFIG.BACKEND_URL + imageUrl;
 }
 
@@ -484,7 +566,7 @@ function escapeHtml(text) {
 }
 
 // ============================================================================
-// LOGGING Y DEBUGGING
+// LOGGING
 // ============================================================================
-console.log('Pearl Glean - Frontend v1.0 inicializado');
+console.log('Pearl Glean - SPA v2.0 inicializado');
 console.log('API URL:', CONFIG.API_BASE_URL);

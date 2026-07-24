@@ -43,8 +43,6 @@ a:hover {
   justify-content: space-between;
   padding: 28px 56px;
   border-bottom: 1px solid rgba(243, 237, 228, 0.22);
-  position: sticky;
-  top: 0;
   background: var(--color-bg);
   z-index: 20;
 }
@@ -59,6 +57,8 @@ a:hover {
   font-family: var(--font-serif);
   font-size: 22px;
   letter-spacing: 0.14em;
+  text-decoration: none;
+  display: inline-block;
 }
 
 .logo-pearl {
@@ -94,8 +94,13 @@ a:hover {
   transition: transform 0.25s ease;
 }
 
-.nav-link:hover::after {
+.nav-link:hover::after,
+.nav-link.active::after {
   transform: scaleX(1);
+}
+
+.nav-link.active {
+  color: var(--color-gold);
 }
 
 .nav-btn {
@@ -168,9 +173,9 @@ a:hover {
 
 /* BOTONES */
 .btn {
-  padding: 15px 30px;
+  padding: 11px 22px;
   font-size: 12px;
-  letter-spacing: 0.12em;
+  letter-spacing: 0.1em;
   font-weight: 500;
   display: inline-block;
   transition: all 0.25s ease;
@@ -261,6 +266,22 @@ a:hover {
   transform: scaleX(1);
 }
 
+/* TAG DE FILTRO ACTIVO */
+.filter-tag {
+  font-family: var(--font-sans);
+  font-size: 12px;
+  font-weight: 400;
+  letter-spacing: 0.08em;
+  color: var(--color-text);
+  vertical-align: middle;
+  margin-left: 16px;
+  transition: color 0.25s ease;
+}
+
+.filter-tag:hover {
+  color: var(--color-gold);
+}
+
 /* GRID DE PRODUCTOS */
 .products-grid {
   display: grid;
@@ -347,7 +368,7 @@ a:hover {
   position: absolute;
   top: 12px;
   left: 12px;
-  background: #c0392b;
+  background: #2ecc71;
   color: #fff;
   font-size: 11px;
   font-weight: 500;
@@ -368,14 +389,15 @@ a:hover {
   margin-right: 6px;
 }
 
-.product-price-discount {
-  color: #e74c3c;
+.product-price-discount,
+.price-discounted {
+  color: #2ecc71;
   font-weight: 500;
 }
 
 .product-promo-name {
   font-size: 12px;
-  color: var(--color-gold);
+  color: #2ecc71;
   letter-spacing: 0.5px;
   margin-top: 4px;
 }
@@ -576,7 +598,7 @@ a:hover {
 }
 
 .modal-price-saving {
-  color: #e74c3c;
+  color: #2ecc71;
   font-size: 16px;
   font-family: var(--font-sans);
 }
@@ -585,10 +607,17 @@ a:hover {
   background: rgba(192, 163, 100, 0.12);
   border: 1px solid var(--color-gold);
   color: var(--color-gold-light);
-  font-size: 13px;
+  font-size: 12px;
   letter-spacing: 0.5px;
-  padding: 8px 14px;
+  padding: 6px 12px;
   margin-bottom: 12px;
+  display: inline-block;
+}
+
+.modal-promo.promo-green {
+  background: rgba(46, 204, 113, 0.12);
+  border-color: #2ecc71;
+  color: #2ecc71;
 }
 
 .modal-description {
@@ -629,12 +658,149 @@ a:hover {
 
 .modal-buttons {
   display: flex;
-  gap: 16px;
+  gap: 14px;
   flex-wrap: wrap;
+  align-items: flex-start;
 }
 
 .modal-close-btn {
   margin-top: 0;
+}
+
+/* VISTA DETALLE DE PRODUCTO */
+.product-detail-view {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 0 56px;
+}
+
+.detail-header {
+  padding: 28px 0;
+  border-bottom: 1px solid rgba(243, 237, 228, 0.22);
+}
+
+.detail-back {
+  color: var(--color-text);
+  font-size: 13px;
+  letter-spacing: 0.06em;
+  position: relative;
+}
+
+.detail-back::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -4px;
+  height: 1px;
+  background: var(--color-gold);
+  transform: scaleX(0);
+  transition: transform 0.25s ease;
+}
+
+.detail-back:hover::after {
+  transform: scaleX(1);
+}
+
+.detail-body {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 64px;
+  padding: 64px 0;
+}
+
+.detail-image {
+  position: relative;
+  aspect-ratio: 1/1;
+  border: 1px solid rgba(243, 237, 228, 0.35);
+  background: radial-gradient(circle at 50% 40%, rgba(243, 237, 228, 0.05), transparent 65%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-muted-light);
+  font-family: ui-monospace, monospace;
+  font-size: 12px;
+  letter-spacing: 0.05em;
+  text-align: center;
+  overflow: hidden;
+}
+
+.detail-image img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.detail-price {
+  font-family: ui-monospace, monospace;
+  font-size: 26px;
+  margin-bottom: 24px;
+}
+
+.detail-not-found {
+  text-align: center;
+  padding: 100px 56px;
+}
+
+.detail-not-found h2 {
+  font-family: var(--font-serif);
+  font-weight: 500;
+  font-size: 32px;
+  margin: 0 0 24px;
+}
+
+/* PÁGINA DE CONTACTO */
+.contacto-page {
+  max-width: 800px;
+  margin: 0 auto;
+  padding: 80px 56px;
+}
+
+.contacto-page h2 {
+  font-family: var(--font-serif);
+  font-size: 38px;
+  font-weight: 500;
+  margin: 0 0 16px;
+}
+
+.contacto-text {
+  color: var(--color-muted);
+  font-size: 15px;
+  line-height: 1.8;
+  margin: 0 0 48px;
+  max-width: 50ch;
+}
+
+.contacto-links {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.contacto-item {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  color: var(--color-text);
+  padding: 20px;
+  border: 1px solid var(--color-border);
+  transition: border-color 0.25s ease;
+}
+
+.contacto-item:hover {
+  border-color: var(--color-gold);
+  color: var(--color-text);
+}
+
+.contacto-label {
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  color: var(--color-gold);
+  margin-bottom: 4px;
+}
+
+.contacto-value {
+  font-size: 15px;
 }
 
 /* SKELETON LOADER */
@@ -696,10 +862,15 @@ a:hover {
     flex-direction: column;
   }
 
-  .modal-body {
+  .modal-body,
+  .detail-body {
     grid-template-columns: 1fr;
     gap: 32px;
-    padding: 32px;
+    padding: 32px 0;
+  }
+
+  .product-detail-view {
+    padding: 0 32px;
   }
 
   .modal-header {
@@ -711,7 +882,8 @@ a:hover {
     font-size: 28px;
   }
 
-  .modal-price {
+  .modal-price,
+  .detail-price {
     font-size: 22px;
   }
 
@@ -741,6 +913,10 @@ a:hover {
     flex-direction: column;
     align-items: flex-start;
     gap: 8px;
+  }
+
+  .contacto-page {
+    padding: 40px 32px;
   }
 }
 
@@ -772,6 +948,14 @@ a:hover {
   .modal-body {
     padding: 20px;
     gap: 24px;
+  }
+
+  .product-detail-view {
+    padding: 0 16px;
+  }
+
+  .contacto-page {
+    padding: 40px 16px;
   }
 
   .modal-name {
