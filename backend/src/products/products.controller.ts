@@ -11,6 +11,7 @@ import {
   HttpStatus,
   Logger,
   UseInterceptors,
+  UseGuards,
   UploadedFile,
   ParseFilePipe,
   MaxFileSizeValidator,
@@ -20,6 +21,7 @@ import { FileInterceptor } from '@nestjs/platform-express';
 import { memoryStorage } from 'multer';
 
 import { ApiTags, ApiOperation, ApiConsumes } from '@nestjs/swagger';
+import { AuthGuard } from '../auth/auth.guard';
 import { ProductsService } from './products.service';
 import { CloudinaryService } from './cloudinary.service';
 import { CreateProductDto } from './dto/create-product.dto';
@@ -65,12 +67,13 @@ export class ProductsController {
   async findOne(@Param('id') id: string): Promise<Product> {
     const product = await this.productsService.findOne(id);
     if (!product) {
-      throw new HttpException('Producto no encontrado', HttpStatus.NOT_FOUND);
+      throw new HttpException('El producto no existe.', HttpStatus.NOT_FOUND);
     }
     return product;
   }
 
   @Post()
+  @UseGuards(AuthGuard)
   @ApiOperation({ summary: 'Crear un producto (con imagen opcional)' })
   @ApiConsumes('multipart/form-data')
   @UseInterceptors(FileInterceptor('image', imageUploadOptions))
@@ -87,14 +90,16 @@ export class ProductsController {
       this.logger.debug(`Creando nuevo producto: ${createProductDto.name}`);
       return await this.productsService.create(createProductDto);
     } catch (error) {
-      const msg =
-        error instanceof Error ? error.message : 'Error al crear el producto';
-      this.logger.error(`Error al crear producto: ${msg}`);
-      throw new HttpException(msg, HttpStatus.BAD_REQUEST);
+      this.logger.error('Error al crear producto', error);
+      throw new HttpException(
+        'No se pudo crear el producto. Verifica los datos e intenta de nuevo.',
+        HttpStatus.BAD_REQUEST,
+      );
     }
   }
 
   @Put(':id')
+  @UseGuards(AuthGuard)
   @ApiOperation({ summary: 'Actualizar un producto (con imagen opcional)' })
   @ApiConsumes('multipart/form-data')
   @UseInterceptors(FileInterceptor('image', imageUploadOptions))
@@ -106,7 +111,7 @@ export class ProductsController {
     try {
       const existing = await this.productsService.findOne(id);
       if (!existing) {
-        throw new HttpException('Producto no encontrado', HttpStatus.NOT_FOUND);
+        throw new HttpException('El producto que intentas editar no existe.', HttpStatus.NOT_FOUND);
       }
 
       if (file) {
@@ -126,30 +131,32 @@ export class ProductsController {
       this.logger.debug(`Producto actualizado: ${id}`);
       return product!;
     } catch (error) {
-      if (error instanceof HttpException) {
-        throw error;
-      }
-      const msg =
-        error instanceof Error
-          ? error.message
-          : 'Error al actualizar el producto';
-      this.logger.error(`Error al actualizar producto ${id}: ${msg}`);
-      throw new HttpException(msg, HttpStatus.BAD_REQUEST);
+      if (error instanceof HttpException) throw error;
+      this.logger.error('Error al actualizar producto', error);
+      throw new HttpException(
+        'No se pudo actualizar el producto. Verifica los datos e intenta de nuevo.',
+        HttpStatus.BAD_REQUEST,
+      );
     }
   }
 
   @Delete(':id')
+  @UseGuards(AuthGuard)
   @ApiOperation({ summary: 'Desactivar un producto (soft delete)' })
   async delete(@Param('id') id: string): Promise<{ message: string }> {
     const success = await this.productsService.delete(id);
     if (!success) {
-      throw new HttpException('Producto no encontrado', HttpStatus.NOT_FOUND);
+      throw new HttpException(
+        'El producto que intentas desactivar no existe.',
+        HttpStatus.NOT_FOUND,
+      );
     }
     this.logger.debug(`Producto desactivado: ${id}`);
     return { message: 'Producto desactivado exitosamente' };
   }
 
   @Post(':id/image')
+  @UseGuards(AuthGuard)
   @ApiOperation({ summary: 'Subir o reemplazar la imagen de un producto' })
   @ApiConsumes('multipart/form-data')
   @UseInterceptors(FileInterceptor('image', imageUploadOptions))
@@ -167,7 +174,10 @@ export class ProductsController {
   ): Promise<Product> {
     const product = await this.productsService.findOne(id);
     if (!product) {
-      throw new HttpException('Producto no encontrado', HttpStatus.NOT_FOUND);
+      throw new HttpException(
+        'El producto al que intentas subir la imagen no existe.',
+        HttpStatus.NOT_FOUND,
+      );
     }
 
     // Subir nueva imagen a la carpeta de su categoría

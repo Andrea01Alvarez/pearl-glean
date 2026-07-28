@@ -21,8 +21,8 @@ export class CloudinaryService implements OnModuleInit {
     file: Express.Multer.File,
     category: string,
   ): Promise<{ url: string; publicId: string }> {
-    // Guardar en pearl_glean/aretes, pearl_glean/collar, o pearl_glean/pulsera
-    const folder = `pearl_glean/${category}`;
+    const baseFolder = this.configService.get('CLOUDINARY_FOLDER', 'gp-local');
+    const folder = `${baseFolder}/${category}`;
 
     const result: UploadApiResponse = await new Promise((resolve, reject) => {
       cloudinary.uploader
@@ -30,6 +30,8 @@ export class CloudinaryService implements OnModuleInit {
           {
             folder,
             resource_type: 'image',
+            quality: 'auto',
+            fetch_format: 'auto',
           },
           (error, result) => {
             if (error || !result) {

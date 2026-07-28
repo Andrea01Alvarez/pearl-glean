@@ -3,6 +3,7 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule, TypeOrmModuleOptions } from '@nestjs/typeorm';
 import { ProductsModule } from './products/products.module';
 import { PromotionsModule } from './promotions/promotions.module';
+import { AuthModule } from './auth/auth.module';
 import { Product } from './products/entities/product.entity';
 import { Promotion } from './promotions/entities/promotion.entity';
 
@@ -42,6 +43,7 @@ import { Promotion } from './promotions/entities/promotion.entity';
     }),
     ProductsModule,
     PromotionsModule,
+    AuthModule,
   ],
 })
 export class AppModule {}
