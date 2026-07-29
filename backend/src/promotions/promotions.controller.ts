@@ -32,6 +32,13 @@ export class PromotionsController {
     return this.promotionsService.findAll();
   }
 
+  @Get('admin/all')
+  @UseGuards(AuthGuard)
+  @ApiOperation({ summary: 'Obtener todas las promociones (admin)' })
+  async findAllAdmin(): Promise<Promotion[]> {
+    return this.promotionsService.findAllAdmin();
+  }
+
   @Get(':id')
   @ApiOperation({ summary: 'Obtener una promoción por ID con sus productos' })
   async findOne(@Param('id') id: string): Promise<Promotion> {

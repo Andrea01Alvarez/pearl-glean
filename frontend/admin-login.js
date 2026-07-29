@@ -1,16 +1,9 @@
 'use strict';
 
 // ============================================================================
-// CONFIGURACIÓN
+// CONFIGURACIÓN (usa config.js)
 // ============================================================================
-const isLocal =
-  window.location.hostname === 'localhost' ||
-  window.location.hostname === '127.0.0.1';
-
-const BACKEND = isLocal
-  ? 'http://localhost:3300'
-  : 'https://pearl-glean.onrender.com';
-
+const BACKEND = BACKEND_CONFIG;
 const API_URL = `${BACKEND}/api`;
 
 // ============================================================================

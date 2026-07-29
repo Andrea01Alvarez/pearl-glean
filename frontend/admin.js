@@ -1,16 +1,9 @@
 'use strict';
 
 // ============================================================================
-// CONFIGURACIÓN
+// CONFIGURACIÓN (usa config.js)
 // ============================================================================
-const isLocal =
-  window.location.hostname === 'localhost' ||
-  window.location.hostname === '127.0.0.1';
-
-const BACKEND = isLocal
-  ? 'http://localhost:3300'
-  : 'https://pearl-glean.onrender.com';
-
+const BACKEND = BACKEND_CONFIG;
 const API_URL = `${BACKEND}/api`;
 const SESSION_TIMEOUT = 30 * 60 * 1000; // 30 minutos
 
@@ -19,6 +12,79 @@ const SESSION_TIMEOUT = 30 * 60 * 1000; // 30 minutos
 // ============================================================================
 let allProducts = [];
 let currentEditId = null;
+let currentSection = 'dashboard';
+
+// ============================================================================
+// SIDEBAR — Navegación entre secciones
+// ============================================================================
+const sidebarLinks = document.querySelectorAll('.sidebar-link');
+const sectionTitles = {
+  dashboard: 'Dashboard',
+  productos: 'Productos',
+  promociones: 'Promociones',
+  ventas: 'Ventas',
+};
+
+function navigateTo(section) {
+  currentSection = section;
+
+  // Actualizar links activos
+  sidebarLinks.forEach(function (link) {
+    link.classList.toggle('active', link.getAttribute('data-section') === section);
+  });
+
+  // Mostrar sección correspondiente
+  document.querySelectorAll('.admin-section').forEach(function (sec) {
+    sec.classList.remove('active');
+  });
+  var targetSection = document.getElementById('section-' + section);
+  if (targetSection) targetSection.classList.add('active');
+
+  // Actualizar título del header
+  document.getElementById('header-title').textContent = sectionTitles[section] || section;
+
+  // Mostrar/ocultar botón nuevo producto
+  var btnNew = document.getElementById('btn-new-product');
+  btnNew.style.display = section === 'productos' ? 'inline-flex' : 'none';
+
+  // Cerrar sidebar en móvil
+  closeSidebar();
+}
+
+sidebarLinks.forEach(function (link) {
+  link.addEventListener('click', function () {
+    navigateTo(link.getAttribute('data-section'));
+  });
+});
+
+// Sidebar toggle en móvil
+var sidebarEl = document.getElementById('sidebar');
+var sidebarToggle = document.getElementById('sidebar-toggle');
+
+// Crear overlay para cerrar sidebar en móvil
+var sidebarOverlay = document.createElement('div');
+sidebarOverlay.className = 'sidebar-overlay';
+document.body.appendChild(sidebarOverlay);
+
+function openSidebar() {
+  sidebarEl.classList.add('open');
+  sidebarOverlay.classList.add('visible');
+}
+
+function closeSidebar() {
+  sidebarEl.classList.remove('open');
+  sidebarOverlay.classList.remove('visible');
+}
+
+sidebarToggle.addEventListener('click', function () {
+  if (sidebarEl.classList.contains('open')) {
+    closeSidebar();
+  } else {
+    openSidebar();
+  }
+});
+
+sidebarOverlay.addEventListener('click', closeSidebar);
 
 // ============================================================================
 // AUTH — Sesión y token
@@ -804,19 +870,1137 @@ document.getElementById('product-form').addEventListener('submit', async functio
 });
 
 // ============================================================================
+// PROMOCIONES — Estado y carga
+// ============================================================================
+let currentEditPromoId = null;
+
+async function loadAllPromotions() {
+  // Carga TODAS las promociones (activas e inactivas) para la tabla del admin
+  var response = await authFetch(API_URL + '/promotions/admin/all');
+  if (!response) return;
+  if (!response.ok) return;
+  allPromotions = await response.json();
+  renderPromosTable();
+}
+
+// ============================================================================
+// PROMOCIONES — Tabla
+// ============================================================================
+function renderPromosTable() {
+  var tbody = document.getElementById('promos-table-body');
+  if (!tbody) return;
+
+  if (allPromotions.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="8" class="table-empty">No hay promociones registradas.</td></tr>';
+    return;
+  }
+
+  var now = new Date();
+  now.setHours(0, 0, 0, 0);
+
+  tbody.innerHTML = allPromotions.map(function (p) {
+    var typeLabel = p.type === 'descuento' ? 'Descuento' : 'Promoción';
+    var discountText = p.discountPercentage ? Number(p.discountPercentage) + '%' : '-';
+    var startText = p.startDate ? new Date(p.startDate).toLocaleDateString('es-HN') : '-';
+    var endText = p.endDate ? new Date(p.endDate).toLocaleDateString('es-HN') : '-';
+    var productCount = (p.products && p.products.length) || 0;
+
+    // Determinar estado
+    var isExpired = p.endDate && new Date(p.endDate) < now;
+    var statusText, statusDot;
+    if (!p.isActive) {
+      statusText = 'Inactiva';
+      statusDot = 'inactive';
+    } else if (isExpired) {
+      statusText = 'Expirada';
+      statusDot = 'inactive';
+    } else {
+      statusText = 'Activa';
+      statusDot = 'active';
+    }
+
+    var toggleBtn = p.isActive
+      ? '<button class="btn btn-outline btn-sm" onclick="togglePromoStatus(\'' + p.id + '\', true)">Desactivar</button>'
+      : '<button class="btn btn-success btn-sm" onclick="togglePromoStatus(\'' + p.id + '\', false)">Activar</button>';
+
+    return '<tr>' +
+      '<td class="product-name">' + escapeHtml(p.name) + '</td>' +
+      '<td>' + typeLabel + '</td>' +
+      '<td>' + discountText + '</td>' +
+      '<td>' + startText + '</td>' +
+      '<td>' + endText + '</td>' +
+      '<td>' + productCount + ' producto' + (productCount !== 1 ? 's' : '') + '</td>' +
+      '<td><span class="status-badge"><span class="status-dot ' + statusDot + '"></span>' + statusText + '</span></td>' +
+      '<td class="table-actions">' +
+        '<button class="btn btn-outline btn-sm" onclick="openEditPromoModal(\'' + p.id + '\')">Editar</button>' +
+        toggleBtn +
+        '<button class="btn btn-danger btn-sm" onclick="deletePromo(\'' + p.id + '\')">Eliminar</button>' +
+      '</td>' +
+    '</tr>';
+  }).join('');
+}
+
+// ============================================================================
+// PROMOCIONES — Modal crear/editar
+// ============================================================================
+function populatePromoProductsSelector(selectedIds) {
+  var container = document.getElementById('promo-products-selector');
+  var selectedSet = new Set(selectedIds || []);
+
+  // Solo productos activos con stock disponible
+  var availableProducts = allProducts.filter(function (p) {
+    return p.isActive && (Number(p.stock) > 0);
+  });
+
+  // Si estamos editando, incluir también los que ya están seleccionados aunque no tengan stock
+  if (selectedIds && selectedIds.length > 0) {
+    allProducts.forEach(function (p) {
+      if (selectedSet.has(p.id) && !availableProducts.find(function (ap) { return ap.id === p.id; })) {
+        availableProducts.push(p);
+      }
+    });
+  }
+
+  if (availableProducts.length === 0) {
+    container.innerHTML = '<div style="padding:1rem;color:var(--admin-text-light);text-align:center;font-size:0.85rem">No hay productos con stock disponible.</div>';
+    return;
+  }
+
+  container.innerHTML = availableProducts.map(function (p) {
+    var imgTag = p.imageUrl
+      ? '<img src="' + escapeHtml(p.imageUrl) + '" alt="' + escapeHtml(p.name) + '"/>'
+      : '<div style="width:36px;height:36px;background:#eee;border-radius:4px;display:flex;align-items:center;justify-content:center;font-size:9px;color:#aaa">Sin img</div>';
+    var checked = selectedSet.has(p.id) ? 'checked' : '';
+
+    return '<label class="promo-product-item">' +
+      '<input type="checkbox" value="' + p.id + '" ' + checked + '/>' +
+      imgTag +
+      '<div class="promo-product-item-info">' +
+        '<strong>' + escapeHtml(p.name) + '</strong>' +
+        '<span>' + formatLempiras(p.price) + ' — ' + categoryLabel(p.category) + '</span>' +
+      '</div>' +
+    '</label>';
+  }).join('');
+}
+
+function getSelectedPromoProductIds() {
+  var checkboxes = document.querySelectorAll('#promo-products-selector input[type="checkbox"]:checked');
+  var ids = [];
+  checkboxes.forEach(function (cb) { ids.push(cb.value); });
+  return ids;
+}
+
+function openCreatePromoModal() {
+  currentEditPromoId = null;
+  document.getElementById('promo-modal-title').textContent = 'Nueva promoción';
+  document.getElementById('btn-submit-promo').textContent = 'Crear';
+  document.getElementById('promo-form').reset();
+  document.getElementById('promo-id').value = '';
+  populatePromoProductsSelector([]);
+  hidePromoModalError();
+  document.getElementById('promo-modal').classList.add('visible');
+}
+
+function openEditPromoModal(id) {
+  var promo = allPromotions.find(function (p) { return p.id === id; });
+  if (!promo) {
+    showToast('No se encontró la promoción.', 'error');
+    return;
+  }
+
+  currentEditPromoId = id;
+  document.getElementById('promo-modal-title').textContent = 'Editar promoción';
+  document.getElementById('btn-submit-promo').textContent = 'Guardar cambios';
+  document.getElementById('promo-id').value = id;
+
+  document.getElementById('promo-name').value = promo.name || '';
+  document.getElementById('promo-type').value = promo.type || '';
+  document.getElementById('promo-discount').value = promo.discountPercentage || '';
+  document.getElementById('promo-label').value = promo.label || '';
+  document.getElementById('promo-start').value = promo.startDate ? promo.startDate.split('T')[0] : '';
+  document.getElementById('promo-end').value = promo.endDate ? promo.endDate.split('T')[0] : '';
+
+  var selectedIds = (promo.products || []).map(function (p) { return p.id; });
+  populatePromoProductsSelector(selectedIds);
+
+  hidePromoModalError();
+  document.getElementById('promo-modal').classList.add('visible');
+}
+
+function closePromoModal() {
+  document.getElementById('promo-modal').classList.remove('visible');
+  currentEditPromoId = null;
+}
+
+function showPromoModalError(msg) {
+  var el = document.getElementById('promo-modal-error');
+  el.textContent = msg;
+  el.classList.add('visible');
+}
+
+function hidePromoModalError() {
+  document.getElementById('promo-modal-error').classList.remove('visible');
+}
+
+document.getElementById('btn-new-promo').addEventListener('click', openCreatePromoModal);
+document.getElementById('btn-cancel-promo-modal').addEventListener('click', closePromoModal);
+document.getElementById('promo-modal').addEventListener('click', function (e) {
+  if (e.target === this) closePromoModal();
+});
+
+// ============================================================================
+// PROMOCIONES — Submit (crear / editar)
+// ============================================================================
+document.getElementById('promo-form').addEventListener('submit', function (e) {
+  e.preventDefault();
+  hidePromoModalError();
+
+  var isEdit = !!currentEditPromoId;
+  var name = document.getElementById('promo-name').value.trim();
+  var type = document.getElementById('promo-type').value;
+  var discountPercentage = parseFloat(document.getElementById('promo-discount').value) || 0;
+  var label = document.getElementById('promo-label').value.trim();
+  var startDate = document.getElementById('promo-start').value;
+  var endDate = document.getElementById('promo-end').value;
+  var productIds = getSelectedPromoProductIds();
+
+  // Validaciones
+  if (!name) { showPromoModalError('El nombre es obligatorio.'); return; }
+  if (!type) { showPromoModalError('Selecciona un tipo.'); return; }
+  if (type === 'descuento' && discountPercentage <= 0) {
+    showPromoModalError('El porcentaje de descuento debe ser mayor a 0.'); return;
+  }
+  if (startDate && endDate && new Date(startDate) > new Date(endDate)) {
+    showPromoModalError('La fecha de inicio no puede ser posterior a la fecha fin.'); return;
+  }
+
+  var promoData = {
+    name: name,
+    type: type,
+    discountPercentage: discountPercentage || null,
+    label: label || null,
+    startDate: startDate || null,
+    endDate: endDate || null,
+    productIds: productIds,
+  };
+
+  var confirmTitle = isEdit ? '¿Guardar cambios?' : '¿Crear promoción?';
+  var confirmMsg = isEdit
+    ? '¿Está seguro de guardar los cambios en "' + escapeHtml(name) + '"?'
+    : '¿Está seguro de crear la promoción "' + escapeHtml(name) + '"?';
+
+  showConfirm(confirmTitle, confirmMsg, async function () {
+    var submitBtn = document.getElementById('btn-submit-promo');
+    submitBtn.disabled = true;
+    submitBtn.textContent = isEdit ? 'Guardando...' : 'Creando...';
+
+    try {
+      var url = isEdit ? API_URL + '/promotions/' + currentEditPromoId : API_URL + '/promotions';
+      var method = isEdit ? 'PUT' : 'POST';
+      var response = await authFetch(url, {
+        method: method,
+        body: JSON.stringify(promoData),
+      });
+
+      if (!response) return;
+
+      if (response.ok) {
+        showToast(isEdit ? 'Promoción actualizada correctamente.' : 'Promoción creada correctamente.');
+        closePromoModal();
+        await loadAllPromotions();
+        await loadProducts();
+      } else {
+        var data = await response.json().catch(function () { return {}; });
+        showPromoModalError(data.message || 'No se pudo guardar la promoción.');
+      }
+    } catch (error) {
+      showPromoModalError('Ocurrió un error inesperado.');
+    } finally {
+      submitBtn.disabled = false;
+      submitBtn.textContent = isEdit ? 'Guardar cambios' : 'Crear';
+    }
+  });
+});
+
+// ============================================================================
+// PROMOCIONES — Activar / Desactivar
+// ============================================================================
+function togglePromoStatus(id, isCurrentlyActive) {
+  var promo = allPromotions.find(function (p) { return p.id === id; });
+  var promoName = promo ? promo.name : 'esta promoción';
+
+  if (isCurrentlyActive) {
+    showConfirm(
+      '¿Desactivar promoción?',
+      '"' + escapeHtml(promoName) + '" dejará de aplicarse. Los productos volverán a su precio normal.',
+      async function () {
+        var response = await authFetch(API_URL + '/promotions/' + id, {
+          method: 'PUT',
+          body: JSON.stringify({ isActive: false, productIds: [] }),
+        });
+        if (!response) return;
+        if (response.ok) {
+          showToast('"' + promoName + '" fue desactivada. Productos a precio normal.');
+          await loadAllPromotions();
+          await loadProducts();
+        } else {
+          showToast('No se pudo desactivar la promoción.', 'error');
+        }
+      }
+    );
+  } else {
+    // Al reactivar, NO se aplican productos automáticamente
+    showConfirm(
+      '¿Activar promoción?',
+      '"' + escapeHtml(promoName) + '" se activará pero sin productos asignados. Deberás asignar productos manualmente desde Editar.',
+      async function () {
+        var response = await authFetch(API_URL + '/promotions/' + id, {
+          method: 'PUT',
+          body: JSON.stringify({ isActive: true, productIds: [] }),
+        });
+        if (!response) return;
+        if (response.ok) {
+          showToast('"' + promoName + '" fue activada. Asigna productos desde Editar.');
+          await loadAllPromotions();
+          await loadProducts();
+        } else {
+          showToast('No se pudo activar la promoción.', 'error');
+        }
+      }
+    );
+  }
+}
+
+// ============================================================================
+// PROMOCIONES — Eliminar
+// ============================================================================
+function deletePromo(id) {
+  var promo = allPromotions.find(function (p) { return p.id === id; });
+  var promoName = promo ? promo.name : 'esta promoción';
+
+  showConfirm(
+    '¿Eliminar promoción?',
+    '¿Está seguro de eliminar "' + escapeHtml(promoName) + '"? Los productos volverán a su precio normal.',
+    async function () {
+      var response = await authFetch(API_URL + '/promotions/' + id, { method: 'DELETE' });
+      if (!response) return;
+      if (response.ok) {
+        showToast('Promoción eliminada. Productos a precio normal.');
+        await loadAllPromotions();
+        await loadProducts();
+      } else {
+        var data = await response.json().catch(function () { return {}; });
+        showToast(data.message || 'No se pudo eliminar la promoción.', 'error');
+      }
+    }
+  );
+}
+
+// ============================================================================
+// VENTAS — Estado y carga
+// ============================================================================
+let allSales = [];
+let allPromotions = [];
+let currentEditSaleId = null;
+
+async function loadPromotions() {
+  var response = await authFetch(API_URL + '/promotions');
+  if (!response) return;
+  if (!response.ok) return;
+  allPromotions = await response.json();
+}
+
+async function loadSales() {
+  const response = await authFetch(`${API_URL}/sales`);
+  if (!response) return;
+  if (!response.ok) {
+    showToast('No se pudieron cargar las ventas.', 'error');
+    return;
+  }
+  allSales = await response.json();
+  renderSalesTable();
+  renderDashboardSales();
+}
+
+// ============================================================================
+// DASHBOARD — Cards y gráficos
+// ============================================================================
+var weeklyChart = null;
+var monthlyChart = null;
+
+function renderDashboardSales() {
+  // Total ventas (suma de cantidades, no de registros)
+  var totalCount = allSales.reduce(function (sum, s) { return sum + Number(s.quantity); }, 0);
+  var totalAmount = allSales.reduce(function (sum, s) { return sum + Number(s.total); }, 0);
+  document.getElementById('stat-total-sales').textContent = totalCount;
+  document.getElementById('stat-total-sales-amount').textContent = formatLempiras(totalAmount) + ' generado';
+
+  // Ventas este mes (suma de cantidades)
+  var now = new Date();
+  var currentMonth = now.getMonth();
+  var currentYear = now.getFullYear();
+  var monthSales = allSales.filter(function (s) {
+    var d = new Date(s.saleDate);
+    return d.getMonth() === currentMonth && d.getFullYear() === currentYear;
+  });
+  var monthCount = monthSales.reduce(function (sum, s) { return sum + Number(s.quantity); }, 0);
+  var monthAmount = monthSales.reduce(function (sum, s) { return sum + Number(s.total); }, 0);
+  document.getElementById('stat-month-sales').textContent = monthCount;
+  document.getElementById('stat-month-sales-amount').textContent = formatLempiras(monthAmount) + ' este mes';
+
+  // Descuentos activos
+  var nowDate = new Date();
+  nowDate.setHours(0, 0, 0, 0);
+  var activePromos = allPromotions.filter(function (p) {
+    if (!p.isActive) return false;
+    if (p.endDate && new Date(p.endDate) < nowDate) return false;
+    return true;
+  });
+  document.getElementById('stat-active-promos').textContent = activePromos.length;
+  var promoListEl = document.getElementById('stat-active-promos-list');
+  if (activePromos.length === 0) {
+    promoListEl.textContent = 'Sin descuentos activos';
+  } else {
+    promoListEl.innerHTML = activePromos.slice(0, 3).map(function (p) {
+      return '<div style="font-size:0.8rem">' + escapeHtml(p.name) + ' (' + Number(p.discountPercentage || 0) + '%)</div>';
+    }).join('');
+    if (activePromos.length > 3) {
+      promoListEl.innerHTML += '<div style="font-size:0.8rem;color:var(--admin-accent)">+' + (activePromos.length - 3) + ' más</div>';
+    }
+  }
+
+  // Establecer mes actual en el filtro
+  var monthFilter = document.getElementById('dashboard-month-filter');
+  if (!monthFilter.value) {
+    monthFilter.value = currentYear + '-' + String(currentMonth + 1).padStart(2, '0');
+  }
+
+  renderDashboardCharts();
+}
+
+function renderDashboardCharts() {
+  var monthFilter = document.getElementById('dashboard-month-filter').value;
+  if (!monthFilter) return;
+
+  var parts = monthFilter.split('-');
+  var filterYear = parseInt(parts[0]);
+  var filterMonth = parseInt(parts[1]) - 1;
+
+  // Filtrar ventas del mes seleccionado
+  var filteredSales = allSales.filter(function (s) {
+    var d = new Date(s.saleDate);
+    return d.getMonth() === filterMonth && d.getFullYear() === filterYear;
+  });
+
+  renderWeeklyChart(filteredSales, filterYear, filterMonth);
+  renderMonthlyChart();
+}
+
+function renderWeeklyChart(salesInMonth, year, month) {
+  // Agrupar ventas por semana del mes
+  var weeks = {};
+  var daysInMonth = new Date(year, month + 1, 0).getDate();
+
+  for (var w = 1; w <= 5; w++) {
+    weeks['Semana ' + w] = 0;
+  }
+
+  salesInMonth.forEach(function (s) {
+    var d = new Date(s.saleDate);
+    var day = d.getDate();
+    var weekNum = Math.min(Math.ceil(day / 7), 5);
+    weeks['Semana ' + weekNum] += Number(s.total);
+  });
+
+  var labels = Object.keys(weeks);
+  var data = Object.values(weeks);
+
+  var ctx = document.getElementById('chart-sales-weekly').getContext('2d');
+
+  if (weeklyChart) weeklyChart.destroy();
+
+  weeklyChart = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: labels,
+      datasets: [{
+        label: 'Ventas (L)',
+        data: data,
+        backgroundColor: 'rgba(192, 136, 106, 0.6)',
+        borderColor: '#c0886a',
+        borderWidth: 1,
+        borderRadius: 6,
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+      },
+      scales: {
+        y: {
+          beginAtZero: true,
+          ticks: {
+            callback: function (value) { return 'L ' + value.toLocaleString(); }
+          }
+        }
+      }
+    }
+  });
+}
+
+function renderMonthlyChart() {
+  // Agrupar ventas por los últimos 6 meses
+  var now = new Date();
+  var months = [];
+  var totals = [];
+  var monthNames = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
+
+  for (var i = 5; i >= 0; i--) {
+    var d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    var m = d.getMonth();
+    var y = d.getFullYear();
+    months.push(monthNames[m] + ' ' + y);
+
+    var monthTotal = allSales.reduce(function (sum, s) {
+      var sd = new Date(s.saleDate);
+      if (sd.getMonth() === m && sd.getFullYear() === y) {
+        return sum + Number(s.total);
+      }
+      return sum;
+    }, 0);
+    totals.push(monthTotal);
+  }
+
+  var ctx = document.getElementById('chart-sales-monthly').getContext('2d');
+
+  if (monthlyChart) monthlyChart.destroy();
+
+  monthlyChart = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels: months,
+      datasets: [{
+        label: 'Ventas (L)',
+        data: totals,
+        borderColor: '#c0886a',
+        backgroundColor: 'rgba(192, 136, 106, 0.15)',
+        fill: true,
+        tension: 0.3,
+        pointBackgroundColor: '#c0886a',
+        pointRadius: 5,
+        pointHoverRadius: 7,
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+      },
+      scales: {
+        y: {
+          beginAtZero: true,
+          ticks: {
+            callback: function (value) { return 'L ' + value.toLocaleString(); }
+          }
+        }
+      }
+    }
+  });
+}
+
+// Listener para el filtro de mes
+document.getElementById('dashboard-month-filter').addEventListener('change', renderDashboardCharts);
+
+// ============================================================================
+// VENTAS — Tabla
+// ============================================================================
+function getWeekRange(weekValue) {
+  // weekValue format: "2026-W30"
+  var parts = weekValue.split('-W');
+  var year = parseInt(parts[0]);
+  var week = parseInt(parts[1]);
+
+  // Calcular primer día de la semana (lunes)
+  var jan4 = new Date(year, 0, 4);
+  var dayOfWeek = jan4.getDay() || 7;
+  var monday = new Date(jan4);
+  monday.setDate(jan4.getDate() - dayOfWeek + 1 + (week - 1) * 7);
+
+  var sunday = new Date(monday);
+  sunday.setDate(monday.getDate() + 6);
+
+  return { start: monday, end: sunday };
+}
+
+function getFilteredSales() {
+  var weekFilter = document.getElementById('sales-week-filter');
+  var monthFilter = document.getElementById('sales-month-filter');
+
+  // Filtro por semana tiene prioridad
+  if (weekFilter && weekFilter.value) {
+    var range = getWeekRange(weekFilter.value);
+    return allSales.filter(function (s) {
+      var d = new Date(s.saleDate);
+      d.setHours(0, 0, 0, 0);
+      return d >= range.start && d <= range.end;
+    });
+  }
+
+  if (monthFilter && monthFilter.value) {
+    var parts = monthFilter.value.split('-');
+    var fYear = parseInt(parts[0]);
+    var fMonth = parseInt(parts[1]) - 1;
+    return allSales.filter(function (s) {
+      var d = new Date(s.saleDate);
+      return d.getMonth() === fMonth && d.getFullYear() === fYear;
+    });
+  }
+
+  return allSales;
+}
+
+function renderSalesTable() {
+  var tbody = document.getElementById('sales-table-body');
+  if (!tbody) return;
+
+  var filtered = getFilteredSales();
+
+  if (filtered.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="9" class="table-empty">No hay ventas registradas.</td></tr>';
+    return;
+  }
+
+  tbody.innerHTML = filtered.map(function (s) {
+    var product = s.product || {};
+    var imgSrc = product.imageUrl || '';
+    var imgTag = imgSrc
+      ? '<img class="product-thumbnail" src="' + escapeHtml(imgSrc) + '" alt="' + escapeHtml(s.productName) + '" loading="lazy"/>'
+      : '<div class="product-thumbnail" style="background:#eee;display:flex;align-items:center;justify-content:center;color:#aaa;font-size:11px">Sin img</div>';
+
+    var discountText = 'Sin descuento';
+    if (s.hasDiscount) {
+      var dtName = s.discountType || '';
+      var pct = Number(s.discountPercentage);
+      // Si el nombre ya incluye el porcentaje, no lo repetimos
+      if (dtName.indexOf(pct + '%') !== -1) {
+        discountText = escapeHtml(dtName);
+      } else {
+        discountText = escapeHtml(dtName) + (dtName ? ' — ' : '') + pct + '%';
+      }
+    }
+
+    var saleDate = s.saleDate ? new Date(s.saleDate).toLocaleDateString('es-HN') : '-';
+
+    return '<tr>' +
+      '<td>' + imgTag + '</td>' +
+      '<td class="product-name">' + escapeHtml(s.productName) + '</td>' +
+      '<td>' + s.quantity + '</td>' +
+      '<td>' + formatLempiras(s.unitPrice) + '</td>' +
+      '<td class="sale-discount-col">' + discountText + '</td>' +
+      '<td>' + formatLempiras(s.subtotal) + '</td>' +
+      '<td><strong>' + formatLempiras(s.total) + '</strong></td>' +
+      '<td>' + saleDate + '</td>' +
+      '<td class="table-actions">' +
+        '<button class="btn btn-outline btn-sm" onclick="openEditSaleModal(\'' + s.id + '\')">Editar</button>' +
+        '<button class="btn btn-danger btn-sm" onclick="deleteSale(\'' + s.id + '\')">Eliminar</button>' +
+      '</td>' +
+    '</tr>';
+  }).join('');
+}
+
+// ============================================================================
+// VENTAS — Modal crear/editar
+// ============================================================================
+function populateSaleProductSelect() {
+  var select = document.getElementById('sale-product-select');
+  var activeProducts = allProducts.filter(function (p) { return p.isActive && (p.stock > 0); });
+
+  select.innerHTML = '<option value="">Seleccionar producto...</option>' +
+    activeProducts.map(function (p) {
+      return '<option value="' + p.id + '">' + escapeHtml(p.name) + ' — ' + formatLempiras(p.price) + ' (Stock: ' + (p.stock || 0) + ')</option>';
+    }).join('');
+}
+
+function getProductActivePromotion(product) {
+  if (!product.promotions || product.promotions.length === 0) return null;
+  var now = new Date();
+  now.setHours(0, 0, 0, 0);
+  for (var i = 0; i < product.promotions.length; i++) {
+    var promo = product.promotions[i];
+    if (!promo.isActive) continue;
+    if (promo.startDate && new Date(promo.startDate) > now) continue;
+    if (promo.endDate && new Date(promo.endDate) < now) continue;
+    return promo;
+  }
+  return null;
+}
+
+function populateDiscountTypeSelect(selectedPromoId) {
+  var select = document.getElementById('sale-discount-type');
+  var now = new Date();
+  now.setHours(0, 0, 0, 0);
+
+  // Filtrar solo promociones activas y vigentes
+  var activePromos = allPromotions.filter(function (p) {
+    if (!p.isActive) return false;
+    if (p.startDate && new Date(p.startDate) > now) return false;
+    if (p.endDate && new Date(p.endDate) < now) return false;
+    return true;
+  });
+
+  select.innerHTML = '<option value="">Seleccionar descuento...</option>' +
+    activePromos.map(function (p) {
+      var label = escapeHtml(p.name) + ' (' + Number(p.discountPercentage) + '%)';
+      return '<option value="' + p.id + '" data-percentage="' + (p.discountPercentage || 0) + '">' + label + '</option>';
+    }).join('');
+
+  if (selectedPromoId) {
+    select.value = selectedPromoId;
+  }
+}
+
+function onSaleProductChange() {
+  var select = document.getElementById('sale-product-select');
+  var productId = select.value;
+  var preview = document.getElementById('sale-product-preview');
+
+  if (!productId) {
+    preview.style.display = 'none';
+    document.getElementById('sale-unit-price').value = '';
+    document.getElementById('sale-has-discount').checked = false;
+    document.getElementById('sale-discount-fields').style.display = 'none';
+    document.getElementById('sale-discount-type').value = '';
+    document.getElementById('sale-discount-percentage').value = '';
+    document.getElementById('sale-quantity').value = '';
+    document.getElementById('sale-quantity').removeAttribute('max');
+    updateSaleCalculation();
+    return;
+  }
+
+  var product = allProducts.find(function (p) { return p.id === productId; });
+  if (!product) return;
+
+  // Mostrar preview
+  preview.style.display = 'flex';
+  var img = document.getElementById('sale-product-img');
+  if (product.imageUrl) {
+    img.src = product.imageUrl;
+    img.style.display = 'block';
+  } else {
+    img.style.display = 'none';
+  }
+  document.getElementById('sale-product-name-display').textContent = product.name;
+  document.getElementById('sale-product-price-display').textContent = formatLempiras(product.price);
+  document.getElementById('sale-product-stock-display').textContent = 'Stock disponible: ' + (product.stock || 0);
+
+  // Llenar precio
+  document.getElementById('sale-unit-price').value = product.price;
+
+  // Limitar cantidad al stock
+  var qtyInput = document.getElementById('sale-quantity');
+  qtyInput.setAttribute('max', product.stock || 0);
+  if (!qtyInput.value) qtyInput.value = 1;
+
+  // Verificar si tiene promoción activa
+  var promo = getProductActivePromotion(product);
+  var discountCheck = document.getElementById('sale-has-discount');
+  var discountFields = document.getElementById('sale-discount-fields');
+
+  // Llenar el select de descuentos disponibles
+  populateDiscountTypeSelect(promo ? promo.id : '');
+
+  if (promo && promo.discountPercentage) {
+    discountCheck.checked = true;
+    discountFields.style.display = 'block';
+    document.getElementById('sale-discount-percentage').value = promo.discountPercentage;
+  } else {
+    discountCheck.checked = false;
+    discountFields.style.display = 'none';
+    document.getElementById('sale-discount-type').value = '';
+    document.getElementById('sale-discount-percentage').value = '';
+  }
+
+  updateSaleCalculation();
+}
+
+function updateSaleCalculation() {
+  var quantity = parseInt(document.getElementById('sale-quantity').value) || 0;
+  var unitPrice = parseFloat(document.getElementById('sale-unit-price').value) || 0;
+  var hasDiscount = document.getElementById('sale-has-discount').checked;
+  var discountPct = hasDiscount ? (parseFloat(document.getElementById('sale-discount-percentage').value) || 0) : 0;
+
+  var subtotal = unitPrice * quantity;
+  var discountAmount = subtotal * (discountPct / 100);
+  var total = subtotal - discountAmount;
+
+  var calcSection = document.getElementById('sale-calculation');
+  var discountRow = document.getElementById('sale-calc-discount-row');
+
+  if (quantity > 0 && unitPrice > 0) {
+    calcSection.style.display = 'block';
+    document.getElementById('sale-calc-subtotal').textContent = formatLempiras(subtotal);
+    document.getElementById('sale-calc-total').textContent = formatLempiras(total);
+
+    if (hasDiscount && discountPct > 0) {
+      discountRow.style.display = 'flex';
+      document.getElementById('sale-calc-discount-pct').textContent = discountPct;
+      document.getElementById('sale-calc-discount-amount').textContent = '- ' + formatLempiras(discountAmount);
+    } else {
+      discountRow.style.display = 'none';
+    }
+  } else {
+    calcSection.style.display = 'none';
+  }
+}
+
+function openCreateSaleModal() {
+  currentEditSaleId = null;
+  document.getElementById('sale-modal-title').textContent = 'Nueva venta';
+  document.getElementById('btn-submit-sale').textContent = 'Registrar';
+  document.getElementById('sale-form').reset();
+  document.getElementById('sale-id').value = '';
+  document.getElementById('sale-product-preview').style.display = 'none';
+  document.getElementById('sale-discount-fields').style.display = 'none';
+  document.getElementById('sale-calculation').style.display = 'none';
+  document.getElementById('sale-product-select').disabled = false;
+
+  // Fecha de hoy por defecto
+  var today = new Date().toISOString().split('T')[0];
+  document.getElementById('sale-date').value = today;
+
+  populateSaleProductSelect();
+  hideSaleModalError();
+  document.getElementById('sale-modal').classList.add('visible');
+}
+
+function openEditSaleModal(id) {
+  var sale = allSales.find(function (s) { return s.id === id; });
+  if (!sale) {
+    showToast('No se encontró la venta.', 'error');
+    return;
+  }
+
+  currentEditSaleId = id;
+  document.getElementById('sale-modal-title').textContent = 'Editar venta';
+  document.getElementById('btn-submit-sale').textContent = 'Guardar cambios';
+  document.getElementById('sale-id').value = id;
+
+  populateSaleProductSelect();
+
+  // Si el producto ya no está en la lista (inactivo), agregarlo temporalmente
+  var select = document.getElementById('sale-product-select');
+  var optionExists = false;
+  for (var i = 0; i < select.options.length; i++) {
+    if (select.options[i].value === sale.productId) { optionExists = true; break; }
+  }
+  if (!optionExists) {
+    var opt = document.createElement('option');
+    opt.value = sale.productId;
+    opt.textContent = sale.productName + ' (producto actual)';
+    select.appendChild(opt);
+  }
+
+  select.value = sale.productId;
+  select.disabled = true; // No cambiar producto en edición
+
+  // Llenar campos
+  document.getElementById('sale-quantity').value = sale.quantity;
+  document.getElementById('sale-unit-price').value = sale.unitPrice;
+  document.getElementById('sale-has-discount').checked = sale.hasDiscount;
+  document.getElementById('sale-discount-fields').style.display = sale.hasDiscount ? 'block' : 'none';
+  document.getElementById('sale-date').value = sale.saleDate ? sale.saleDate.split('T')[0] : '';
+
+  // Llenar select de descuentos y tratar de matchear por nombre
+  if (sale.hasDiscount) {
+    populateDiscountTypeSelect('');
+    // Buscar la promo que coincida por nombre
+    var dtSelect = document.getElementById('sale-discount-type');
+    var matched = false;
+    for (var j = 0; j < dtSelect.options.length; j++) {
+      if (dtSelect.options[j].textContent === sale.discountType) {
+        dtSelect.selectedIndex = j;
+        matched = true;
+        break;
+      }
+    }
+    // Si no matchea (promo ya no existe), agregar opción temporal
+    if (!matched && sale.discountType) {
+      var tempOpt = document.createElement('option');
+      tempOpt.value = 'custom';
+      tempOpt.textContent = sale.discountType;
+      tempOpt.setAttribute('data-percentage', sale.discountPercentage || 0);
+      dtSelect.appendChild(tempOpt);
+      dtSelect.value = 'custom';
+    }
+  }
+  document.getElementById('sale-discount-percentage').value = sale.discountPercentage || '';
+
+  // Preview
+  var product = sale.product || {};
+  var preview = document.getElementById('sale-product-preview');
+  preview.style.display = 'flex';
+  var img = document.getElementById('sale-product-img');
+  if (product.imageUrl) {
+    img.src = product.imageUrl;
+    img.style.display = 'block';
+  } else {
+    img.style.display = 'none';
+  }
+  document.getElementById('sale-product-name-display').textContent = sale.productName;
+  document.getElementById('sale-product-price-display').textContent = formatLempiras(sale.unitPrice);
+  document.getElementById('sale-product-stock-display').textContent = '';
+
+  updateSaleCalculation();
+  hideSaleModalError();
+  document.getElementById('sale-modal').classList.add('visible');
+}
+
+function closeSaleModal() {
+  document.getElementById('sale-modal').classList.remove('visible');
+  currentEditSaleId = null;
+}
+
+function showSaleModalError(msg) {
+  var el = document.getElementById('sale-modal-error');
+  el.textContent = msg;
+  el.classList.add('visible');
+}
+
+function hideSaleModalError() {
+  document.getElementById('sale-modal-error').classList.remove('visible');
+}
+
+// Event listeners para el modal de ventas
+document.getElementById('sale-product-select').addEventListener('change', onSaleProductChange);
+document.getElementById('sale-quantity').addEventListener('input', function () {
+  var productId = document.getElementById('sale-product-select').value;
+  var product = allProducts.find(function (p) { return p.id === productId; });
+  var qty = parseInt(this.value) || 0;
+
+  if (product && !currentEditSaleId && qty > (product.stock || 0)) {
+    this.style.borderColor = 'var(--admin-danger)';
+    var parent = this.parentElement;
+    var err = parent.querySelector('.field-error');
+    if (!err) {
+      err = document.createElement('span');
+      err.className = 'field-error';
+      parent.appendChild(err);
+    }
+    err.textContent = 'Solo hay ' + (product.stock || 0) + ' unidades disponibles.';
+  } else {
+    this.style.borderColor = '';
+    var parent2 = this.parentElement;
+    var err2 = parent2.querySelector('.field-error');
+    if (err2) err2.remove();
+  }
+
+  updateSaleCalculation();
+});
+document.getElementById('sale-unit-price').addEventListener('input', updateSaleCalculation);
+document.getElementById('sale-discount-percentage').addEventListener('input', updateSaleCalculation);
+
+document.getElementById('sale-has-discount').addEventListener('change', function () {
+  var fields = document.getElementById('sale-discount-fields');
+  fields.style.display = this.checked ? 'block' : 'none';
+  if (this.checked) {
+    populateDiscountTypeSelect('');
+  } else {
+    document.getElementById('sale-discount-type').value = '';
+    document.getElementById('sale-discount-percentage').value = '';
+  }
+  updateSaleCalculation();
+});
+
+// Al seleccionar un descuento del dropdown, auto-llenar el porcentaje
+document.getElementById('sale-discount-type').addEventListener('change', function () {
+  var selected = this.options[this.selectedIndex];
+  if (selected && selected.value) {
+    var pct = selected.getAttribute('data-percentage');
+    document.getElementById('sale-discount-percentage').value = pct || '';
+  } else {
+    document.getElementById('sale-discount-percentage').value = '';
+  }
+  updateSaleCalculation();
+});
+
+// Filtros de ventas (mes y semana son excluyentes)
+document.getElementById('sales-month-filter').addEventListener('change', function () {
+  document.getElementById('sales-week-filter').value = '';
+  renderSalesTable();
+});
+document.getElementById('sales-week-filter').addEventListener('change', function () {
+  document.getElementById('sales-month-filter').value = '';
+  renderSalesTable();
+});
+document.getElementById('sales-filter-clear').addEventListener('click', function () {
+  document.getElementById('sales-month-filter').value = '';
+  document.getElementById('sales-week-filter').value = '';
+  renderSalesTable();
+});
+
+document.getElementById('btn-new-sale').addEventListener('click', openCreateSaleModal);
+document.getElementById('btn-cancel-sale-modal').addEventListener('click', closeSaleModal);
+document.getElementById('sale-modal').addEventListener('click', function (e) {
+  if (e.target === this) closeSaleModal();
+});
+
+// ============================================================================
+// VENTAS — Submit (crear / editar)
+// ============================================================================
+document.getElementById('sale-form').addEventListener('submit', function (e) {
+  e.preventDefault();
+  hideSaleModalError();
+
+  var isEdit = !!currentEditSaleId;
+  var productId = document.getElementById('sale-product-select').value;
+  var quantity = parseInt(document.getElementById('sale-quantity').value) || 0;
+  var unitPrice = parseFloat(document.getElementById('sale-unit-price').value) || 0;
+  var hasDiscount = document.getElementById('sale-has-discount').checked;
+  var discountTypeSelect = document.getElementById('sale-discount-type');
+  var discountTypeName = '';
+  if (hasDiscount && discountTypeSelect.selectedIndex > 0) {
+    discountTypeName = discountTypeSelect.options[discountTypeSelect.selectedIndex].textContent;
+  }
+  var discountPercentage = hasDiscount ? (parseFloat(document.getElementById('sale-discount-percentage').value) || 0) : 0;
+  var saleDate = document.getElementById('sale-date').value;
+
+  // Validaciones
+  if (!productId) { showSaleModalError('Selecciona un producto.'); return; }
+  if (quantity < 1) { showSaleModalError('La cantidad debe ser al menos 1.'); return; }
+  if (unitPrice <= 0) { showSaleModalError('El precio unitario debe ser mayor a 0.'); return; }
+  if (!saleDate) { showSaleModalError('Selecciona la fecha de venta.'); return; }
+
+  // Validar stock (solo al crear)
+  if (!isEdit) {
+    var product = allProducts.find(function (p) { return p.id === productId; });
+    if (product && quantity > (product.stock || 0)) {
+      showSaleModalError('Stock insuficiente. Solo hay ' + (product.stock || 0) + ' unidades disponibles.');
+      return;
+    }
+  }
+
+  if (hasDiscount && discountPercentage <= 0) {
+    showSaleModalError('Si aplica descuento, el porcentaje debe ser mayor a 0.'); return;
+  }
+
+  var subtotal = unitPrice * quantity;
+  var total = subtotal - (subtotal * discountPercentage / 100);
+
+  var productName = '';
+  var selectEl = document.getElementById('sale-product-select');
+  var selectedOption = selectEl.options[selectEl.selectedIndex];
+  if (selectedOption) {
+    var prod = allProducts.find(function (p) { return p.id === productId; });
+    productName = prod ? prod.name : selectedOption.textContent;
+  }
+
+  var saleData = {
+    productId: productId,
+    productName: productName,
+    quantity: quantity,
+    unitPrice: unitPrice,
+    hasDiscount: hasDiscount,
+    discountType: hasDiscount ? discountTypeName : null,
+    discountPercentage: discountPercentage,
+    subtotal: parseFloat(subtotal.toFixed(2)),
+    total: parseFloat(total.toFixed(2)),
+    saleDate: saleDate,
+  };
+
+  // Confirmación antes de guardar
+  var confirmMsg = isEdit
+    ? '¿Está seguro de guardar los cambios en esta venta?'
+    : '¿Está seguro de registrar esta venta?\n\n' +
+      productName + ' x' + quantity + '\n' +
+      'Total: ' + formatLempiras(total);
+
+  showConfirm(
+    isEdit ? '¿Guardar cambios?' : '¿Registrar venta?',
+    confirmMsg,
+    async function () {
+      var submitBtn = document.getElementById('btn-submit-sale');
+      submitBtn.disabled = true;
+      submitBtn.textContent = isEdit ? 'Guardando...' : 'Registrando...';
+
+      try {
+        var url = isEdit ? API_URL + '/sales/' + currentEditSaleId : API_URL + '/sales';
+        var method = isEdit ? 'PUT' : 'POST';
+        var response = await authFetch(url, {
+          method: method,
+          body: JSON.stringify(saleData),
+        });
+
+        if (!response) return;
+
+        if (response.ok) {
+          showToast(isEdit ? 'Venta actualizada correctamente.' : 'Venta registrada correctamente.');
+          closeSaleModal();
+          await loadProducts();
+          await loadSales();
+        } else {
+          var data = await response.json().catch(function () { return {}; });
+          showSaleModalError(data.message || 'No se pudo guardar la venta.');
+        }
+      } catch (error) {
+        showSaleModalError('Ocurrió un error inesperado.');
+      } finally {
+        submitBtn.disabled = false;
+        submitBtn.textContent = isEdit ? 'Guardar cambios' : 'Registrar';
+      }
+    }
+  );
+});
+
+// ============================================================================
+// VENTAS — Eliminar
+// ============================================================================
+function deleteSale(id) {
+  var sale = allSales.find(function (s) { return s.id === id; });
+  var saleName = sale ? sale.productName : 'esta venta';
+
+  showConfirm(
+    '¿Eliminar venta?',
+    'Se eliminará la venta de "' + escapeHtml(saleName) + '" y se devolverá el stock al producto.',
+    async function () {
+      var response = await authFetch(API_URL + '/sales/' + id, { method: 'DELETE' });
+      if (!response) return;
+      if (response.ok) {
+        showToast('Venta eliminada. Stock devuelto.');
+        await loadProducts();
+        await loadSales();
+      } else {
+        var data = await response.json().catch(function () { return {}; });
+        showToast(data.message || 'No se pudo eliminar la venta.', 'error');
+      }
+    }
+  );
+}
+
+// ============================================================================
 // LOGOUT
 // ============================================================================
-document.getElementById('btn-logout').addEventListener('click', async function () {
-  try {
-    await authFetch(`${API_URL}/auth/logout`, { method: 'POST' });
-  } catch (e) {
-    // Si falla el logout en el servidor, limpiar local de todas formas
-  }
-  sessionStorage.clear();
-  redirectToLogin();
+document.getElementById('btn-logout').addEventListener('click', function () {
+  showConfirm(
+    '¿Cerrar sesión?',
+    'Se cerrará tu sesión actual.',
+    async function () {
+      try {
+        await authFetch(`${API_URL}/auth/logout`, { method: 'POST' });
+      } catch (e) {
+        // Si falla el logout en el servidor, limpiar local de todas formas
+      }
+      sessionStorage.clear();
+      redirectToLogin();
+    }
+  );
 });
 
 // ============================================================================
 // INICIALIZACIÓN
 // ============================================================================
 loadProducts();
+loadAllPromotions();
+loadSales();

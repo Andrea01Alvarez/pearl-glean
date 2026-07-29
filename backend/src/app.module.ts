@@ -3,9 +3,11 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule, TypeOrmModuleOptions } from '@nestjs/typeorm';
 import { ProductsModule } from './products/products.module';
 import { PromotionsModule } from './promotions/promotions.module';
+import { SalesModule } from './sales/sales.module';
 import { AuthModule } from './auth/auth.module';
 import { Product } from './products/entities/product.entity';
 import { Promotion } from './promotions/entities/promotion.entity';
+import { Sale } from './sales/entities/sale.entity';
 
 @Module({
   imports: [
@@ -23,7 +25,7 @@ import { Promotion } from './promotions/entities/promotion.entity';
             type: 'postgres',
             url: databaseUrl,
             ssl: { rejectUnauthorized: false },
-            entities: [Product, Promotion],
+            entities: [Product, Promotion, Sale],
             synchronize: true,
           };
         }
@@ -36,13 +38,14 @@ import { Promotion } from './promotions/entities/promotion.entity';
           username: config.get('DB_USER'),
           password: config.get('DB_PASSWORD'),
           database: config.get('DB_NAME'),
-          entities: [Product, Promotion],
+          entities: [Product, Promotion, Sale],
           synchronize: true,
         };
       },
     }),
     ProductsModule,
     PromotionsModule,
+    SalesModule,
     AuthModule,
   ],
 })

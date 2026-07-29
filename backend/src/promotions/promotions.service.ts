@@ -1,6 +1,6 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { In, Repository } from 'typeorm';
+import { In, LessThan, Repository } from 'typeorm';
 import { Promotion } from './entities/promotion.entity';
 import { Product } from '../products/entities/product.entity';
 import { CreatePromotionDto } from './dto/create-promotion.dto';
@@ -8,6 +8,8 @@ import { UpdatePromotionDto } from './dto/update-promotion.dto';
 
 @Injectable()
 export class PromotionsService {
+  private readonly logger = new Logger(PromotionsService.name);
+
   constructor(
     @InjectRepository(Promotion)
     private readonly promotionRepository: Repository<Promotion>,
@@ -15,10 +17,45 @@ export class PromotionsService {
     private readonly productRepository: Repository<Product>,
   ) {}
 
+  /**
+   * Desactiva promociones cuya fecha fin ya pasó y les quita los productos asignados.
+   * Se ejecuta automáticamente al consultar promociones.
+   */
+  async expirePromotions(): Promise<void> {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const expired = await this.promotionRepository.find({
+      where: {
+        isActive: true,
+        endDate: LessThan(today),
+      },
+      relations: { products: true },
+    });
+
+    for (const promo of expired) {
+      promo.isActive = false;
+      promo.products = [];
+      await this.promotionRepository.save(promo);
+      this.logger.log(
+        `Promoción expirada: "${promo.name}" (fin: ${promo.endDate}). Productos liberados.`,
+      );
+    }
+  }
+
   async findAll(): Promise<Promotion[]> {
+    await this.expirePromotions();
     return this.promotionRepository.find({
       relations: { products: true },
       where: { isActive: true },
+    });
+  }
+
+  async findAllAdmin(): Promise<Promotion[]> {
+    await this.expirePromotions();
+    return this.promotionRepository.find({
+      relations: { products: true },
+      order: { isActive: 'DESC' },
     });
   }
 
