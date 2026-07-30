@@ -558,6 +558,8 @@ body {
   display: flex;
   flex-direction: column;
   min-height: 100vh;
+  min-width: 0;
+  overflow-x: hidden;
 }
 
 /* ============================================================================
@@ -774,6 +776,8 @@ body {
 .admin-content {
   padding: 2rem;
   width: 100%;
+  overflow-x: hidden;
+  box-sizing: border-box;
 }
 
 .stats-grid {
@@ -1010,6 +1014,238 @@ body {
 }
 
 /* ============================================================================
+   DATE PICKER
+   ============================================================================ */
+
+.datepicker-wrapper {
+  position: relative;
+  min-width: 180px;
+  user-select: none;
+}
+
+.datepicker-trigger {
+  padding: 0.75rem 2.25rem 0.75rem 1rem;
+  border: 1px solid var(--admin-border);
+  border-radius: 6px;
+  font-family: var(--font-sans);
+  font-size: 0.85rem;
+  background: var(--admin-card-bg);
+  color: var(--admin-text);
+  cursor: pointer;
+  transition: border-color 0.2s;
+  white-space: nowrap;
+}
+
+.datepicker-trigger::after {
+  content: '';
+  position: absolute;
+  right: 0.85rem;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 14px;
+  height: 14px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%23c0886a' stroke-width='2'%3E%3Crect x='3' y='4' width='18' height='18' rx='2' ry='2'/%3E%3Cline x1='16' y1='2' x2='16' y2='6'/%3E%3Cline x1='8' y1='2' x2='8' y2='6'/%3E%3Cline x1='3' y1='10' x2='21' y2='10'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-size: contain;
+}
+
+.datepicker-wrapper.open .datepicker-trigger {
+  border-color: var(--admin-accent);
+}
+
+.datepicker-dropdown {
+  display: none;
+  position: fixed;
+  background: var(--admin-card-bg);
+  border: 1px solid var(--admin-border);
+  border-radius: 10px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+  z-index: 200;
+  padding: 0.75rem;
+  min-width: 260px;
+}
+
+.datepicker-wrapper.open .datepicker-dropdown {
+  display: block;
+}
+
+.datepicker-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.5rem;
+}
+
+.datepicker-header-label {
+  font-family: var(--font-sans);
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: var(--admin-text);
+  cursor: pointer;
+  padding: 0.25rem 0.5rem;
+  border-radius: 4px;
+  transition: background 0.15s;
+}
+
+.datepicker-header-label:hover {
+  background: var(--admin-bg);
+}
+
+.datepicker-nav {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--admin-accent);
+  font-size: 1.1rem;
+  padding: 0.25rem 0.5rem;
+  border-radius: 4px;
+  transition: background 0.15s;
+  line-height: 1;
+}
+
+.datepicker-nav:hover {
+  background: var(--admin-bg);
+}
+
+.datepicker-weekdays {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  text-align: center;
+  margin-bottom: 0.25rem;
+}
+
+.datepicker-weekday {
+  font-size: 0.7rem;
+  font-weight: 500;
+  color: var(--admin-text-light);
+  padding: 0.25rem 0;
+}
+
+.datepicker-days {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 2px;
+}
+
+.datepicker-day {
+  text-align: center;
+  padding: 0.4rem 0;
+  font-size: 0.8rem;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+  color: var(--admin-text);
+}
+
+.datepicker-day:hover {
+  background: var(--admin-bg);
+  color: var(--admin-accent);
+}
+
+.datepicker-day.other-month {
+  color: #ccc;
+}
+
+.datepicker-day.today {
+  font-weight: 600;
+  border: 1px solid var(--admin-accent);
+}
+
+.datepicker-day.selected {
+  background: var(--admin-accent);
+  color: #fff;
+  font-weight: 500;
+}
+
+.datepicker-day.selected:hover {
+  background: var(--admin-accent-hover);
+  color: #fff;
+}
+
+/* Vista de meses (modo month) */
+.datepicker-months {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 4px;
+}
+
+.datepicker-month-cell {
+  text-align: center;
+  padding: 0.6rem 0.25rem;
+  font-size: 0.82rem;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+  color: var(--admin-text);
+}
+
+.datepicker-month-cell:hover {
+  background: var(--admin-bg);
+  color: var(--admin-accent);
+}
+
+.datepicker-month-cell.selected {
+  background: var(--admin-accent);
+  color: #fff;
+}
+
+.datepicker-month-cell.selected:hover {
+  background: var(--admin-accent-hover);
+  color: #fff;
+}
+
+/* Vista de años */
+.datepicker-years {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 4px;
+}
+
+.datepicker-year-cell {
+  text-align: center;
+  padding: 0.6rem 0.25rem;
+  font-size: 0.82rem;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+  color: var(--admin-text);
+}
+
+.datepicker-year-cell:hover {
+  background: var(--admin-bg);
+  color: var(--admin-accent);
+}
+
+.datepicker-year-cell.selected {
+  background: var(--admin-accent);
+  color: #fff;
+}
+
+.datepicker-year-cell.selected:hover {
+  background: var(--admin-accent-hover);
+  color: #fff;
+}
+
+.datepicker-clear {
+  display: block;
+  width: 100%;
+  margin-top: 0.5rem;
+  padding: 0.35rem;
+  border: none;
+  background: none;
+  color: var(--admin-text-light);
+  font-size: 0.78rem;
+  font-family: var(--font-sans);
+  cursor: pointer;
+  text-align: center;
+  border-top: 1px solid var(--admin-border);
+}
+
+.datepicker-clear:hover {
+  color: var(--admin-accent);
+}
+
+/* ============================================================================
    TABLE
    ============================================================================ */
 
@@ -1017,11 +1253,13 @@ body {
   background: var(--admin-card-bg);
   border: 1px solid var(--admin-border);
   border-radius: 10px;
-  overflow: hidden;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
 }
 
 .products-table {
   width: 100%;
+  min-width: 700px;
   border-collapse: collapse;
   table-layout: auto;
 }
@@ -1036,12 +1274,12 @@ body {
 .products-table td.product-name,
 .products-table td.sale-discount-col {
   white-space: normal;
-  min-width: 120px;
+  min-width: 100px;
 }
 
 .products-table th {
   text-align: left;
-  padding: 1rem 1.5rem;
+  padding: 0.75rem 1rem;
   font-size: 0.85rem;
   font-weight: 500;
   color: var(--admin-text-light);
@@ -1049,9 +1287,9 @@ body {
 }
 
 .products-table td {
-  padding: 1rem 1.5rem;
+  padding: 0.75rem 1rem;
   vertical-align: middle;
-  font-size: 0.95rem;
+  font-size: 0.9rem;
 }
 
 .products-table tbody tr {
@@ -1525,16 +1763,30 @@ body {
     display: flex;
   }
 
+  body {
+    min-height: auto;
+  }
+
+  .admin-layout {
+    min-height: auto;
+  }
+
   .admin-main {
     margin-left: 0;
+    min-height: auto;
+    overflow-x: auto;
   }
 
   .admin-header {
-    padding: 1rem;
+    padding: 0.75rem 1rem;
+  }
+
+  .admin-header-title {
+    font-size: 1.2rem;
   }
 
   .admin-content {
-    padding: 1rem;
+    padding: 0.75rem;
   }
 
   .stats-grid {
@@ -1546,7 +1798,13 @@ body {
   }
 
   .products-table {
-    font-size: 0.85rem;
+    font-size: 0.78rem;
+    min-width: 520px;
+  }
+
+  .products-table th,
+  .products-table td {
+    padding: 0.5rem 0.5rem;
   }
 
   .products-table th:nth-child(1),
@@ -1554,8 +1812,35 @@ body {
     display: none;
   }
 
+  .table-actions {
+    flex-direction: column;
+    gap: 0.3em;
+  }
+
+  .table-actions .btn {
+    font-size: 0.72rem;
+    padding: 0.3em 0.5em;
+    width: 100%;
+    text-align: center;
+  }
+
+  .section-header-bar {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.5rem;
+  }
+
+  .btn-new-product {
+    width: 100%;
+    text-align: center;
+    font-size: 0.85rem;
+  }
+
   .modal-content {
-    padding: 1.5rem;
+    padding: 1.25rem;
+    margin: 0.5rem;
+    max-height: 90vh;
+    overflow-y: auto;
   }
 
   .login-container {
@@ -1575,4 +1860,192 @@ body {
   .login-logo-area {
     height: 60px;
   }
+}
+
+/* ============================================================================
+   BOTÓN FLOTANTE — Venta Rápida
+   ============================================================================ */
+.fab-quick-sale {
+  position: fixed;
+  bottom: 2rem;
+  right: 2rem;
+  z-index: 900;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.85rem 1.5rem;
+  background: var(--admin-accent);
+  color: #fff;
+  border: none;
+  border-radius: 50px;
+  font-family: var(--font-sans);
+  font-size: 0.85rem;
+  font-weight: 500;
+  cursor: pointer;
+  box-shadow: 0 4px 15px rgba(192, 136, 106, 0.4);
+  transition: background 0.2s, box-shadow 0.2s, transform 0.2s;
+}
+.fab-quick-sale:hover {
+  background: var(--admin-accent-hover);
+  box-shadow: 0 6px 20px rgba(192, 136, 106, 0.5);
+  transform: translateY(-2px);
+}
+@media (max-width: 768px) {
+  .fab-quick-sale span { display: none; }
+  .fab-quick-sale {
+    padding: 1rem;
+    border-radius: 50%;
+    width: 56px;
+    height: 56px;
+    justify-content: center;
+  }
+}
+
+/* ============================================================================
+   MODAL — Venta Rápida
+   ============================================================================ */
+.quick-sale-modal-content {
+  max-width: 700px;
+}
+
+.qs-add-row {
+  display: flex;
+  gap: 0.75rem;
+  align-items: flex-start;
+  margin-bottom: 1rem;
+}
+.qs-add-row .qs-product-select { flex: 1; }
+.qs-add-row .btn { white-space: nowrap; padding: 0.6rem 1rem; width: auto; }
+
+.qs-cart {
+  border: 1px solid var(--admin-border);
+  border-radius: 8px;
+  max-height: 300px;
+  overflow-y: auto;
+}
+.qs-cart-empty {
+  padding: 2rem;
+  text-align: center;
+  color: var(--admin-text-light);
+  font-size: 0.9rem;
+}
+
+.qs-cart-item {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid #f5f0ee;
+}
+.qs-cart-item:last-child { border-bottom: none; }
+
+.qs-cart-item-img {
+  width: 40px;
+  height: 40px;
+  object-fit: cover;
+  border-radius: 6px;
+  background: var(--admin-bg);
+  flex-shrink: 0;
+}
+.qs-cart-item-info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  font-size: 0.85rem;
+}
+.qs-cart-item-info strong {
+  color: var(--admin-text);
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.qs-cart-item-info span {
+  color: var(--admin-text-light);
+  font-size: 0.78rem;
+}
+.qs-cart-item-discount {
+  color: var(--admin-success);
+  font-size: 0.75rem;
+  font-weight: 500;
+}
+
+.qs-cart-item-qty {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  flex-shrink: 0;
+}
+.qs-qty-btn {
+  width: 28px;
+  height: 28px;
+  border: 1px solid var(--admin-border);
+  border-radius: 4px;
+  background: var(--admin-card-bg);
+  color: var(--admin-accent);
+  font-size: 1rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.15s;
+}
+.qs-qty-btn:hover { background: var(--admin-bg); }
+.qs-qty-input {
+  width: 40px;
+  text-align: center;
+  border: 1px solid var(--admin-border);
+  border-radius: 4px;
+  font-family: var(--font-sans);
+  font-size: 0.85rem;
+  padding: 0.3rem;
+  color: var(--admin-text);
+}
+.qs-qty-input:focus { outline: none; border-color: var(--admin-accent); }
+
+.qs-cart-item-subtotal {
+  font-weight: 500;
+  font-size: 0.9rem;
+  color: var(--admin-text);
+  white-space: nowrap;
+  min-width: 80px;
+  text-align: right;
+}
+.qs-cart-item-remove {
+  background: none;
+  border: none;
+  color: var(--admin-danger);
+  font-size: 1.3rem;
+  cursor: pointer;
+  padding: 0.25rem;
+  flex-shrink: 0;
+  line-height: 1;
+  transition: color 0.15s;
+}
+.qs-cart-item-remove:hover { color: #c0392b; }
+
+.qs-grand-total {
+  background: var(--admin-bg);
+  border: 1px solid var(--admin-border);
+  border-radius: 8px;
+  padding: 0.75rem 1.25rem;
+  margin-top: 1rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 1rem;
+}
+.qs-grand-total strong {
+  font-size: 1.15rem;
+  color: var(--admin-accent);
+}
+
+@media (max-width: 768px) {
+  .qs-add-row { flex-direction: column; }
+  .qs-add-row .btn { width: 100%; }
+  .qs-cart-item { flex-wrap: wrap; gap: 0.5rem; }
+  .qs-cart-item-info { width: calc(100% - 60px); }
+  .qs-cart-item-qty { margin-left: auto; }
+  .qs-cart-item-subtotal { margin-left: auto; }
 }

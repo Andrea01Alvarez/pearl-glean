@@ -14,15 +14,16 @@
       (function () {
         var p = location.pathname;
         var base;
-        if (p.endsWith('.html')) {
-          base = p.substring(0, p.lastIndexOf('/') + 1);
-        } else if (p.indexOf('/pearl-glean/') !== -1) {
-          base = p.substring(0, p.indexOf('/pearl-glean/')) + '/pearl-glean/';
+        if (p.indexOf("/frontend/") !== -1) {
+          // Live Server desde raíz del proyecto: /frontend/
+          base = p.substring(0, p.indexOf("/frontend/")) + "/frontend/";
+        } else if (p.endsWith(".html")) {
+          base = p.substring(0, p.lastIndexOf("/") + 1);
         } else {
-          base = '/';
+          base = "/";
         }
         window.__SPA_BASE = base;
-        var b = document.createElement('base');
+        var b = document.createElement("base");
         b.href = base;
         document.head.appendChild(b);
       })();
@@ -123,7 +124,6 @@
     </div>
 
     <script src="./router.js" defer></script>
-    <script src="./config.js"></script>
     <script src="./app.js" defer></script>
   </body>
 </html>

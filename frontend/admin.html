@@ -153,10 +153,12 @@
               </div>
             </div>
 
-            <!-- Filtro de mes para los gráficos -->
+            <!-- Filtro de rango de fechas para los gráficos -->
             <div class="dashboard-filter" style="margin-top:1.5rem">
-              <label class="form-label" style="margin-bottom:0">Filtrar ventas por mes:</label>
-              <input type="month" class="form-input" id="dashboard-month-filter" style="width:220px" />
+              <label class="form-label" style="margin-bottom:0">Desde:</label>
+              <div class="datepicker-wrapper" id="dashboard-start-picker" data-mode="date"></div>
+              <label class="form-label" style="margin-bottom:0">Hasta:</label>
+              <div class="datepicker-wrapper" id="dashboard-end-picker" data-mode="date"></div>
             </div>
 
             <!-- Gráficos -->
@@ -261,8 +263,7 @@
             <div class="section-header-bar">
               <div class="sales-filter-bar">
                 <label class="form-label" style="margin-bottom:0">Filtrar por:</label>
-                <input type="month" class="form-input" id="sales-month-filter" style="width:200px" placeholder="Mes" />
-                <input type="week" class="form-input" id="sales-week-filter" style="width:200px" />
+                <div class="datepicker-wrapper" id="sales-date-picker" data-mode="date"></div>
                 <button class="btn btn-outline btn-sm" id="sales-filter-clear">Todos</button>
               </div>
               <button class="btn-new-product" id="btn-new-sale">+ Nueva venta</button>
@@ -390,12 +391,16 @@
           </div>
 
           <div class="form-group">
-            <label class="form-label" for="promo-type">Tipo</label>
-            <select class="form-select" id="promo-type" required>
-              <option value="">Seleccionar tipo...</option>
-              <option value="descuento">Descuento</option>
-              <option value="promocion">Promoción</option>
-            </select>
+            <label class="form-label">Tipo</label>
+            <div class="custom-select" id="promo-type-wrapper">
+              <input type="hidden" id="promo-type" value="" />
+              <div class="custom-select-trigger" id="promo-type-trigger">Seleccionar tipo...</div>
+              <div class="custom-select-options">
+                <div class="custom-select-option selected" data-value="">Seleccionar tipo...</div>
+                <div class="custom-select-option" data-value="descuento">Descuento</div>
+                <div class="custom-select-option" data-value="promocion">Promoción</div>
+              </div>
+            </div>
           </div>
 
           <div class="form-group">
@@ -410,12 +415,12 @@
 
           <div class="form-row-2">
             <div class="form-group">
-              <label class="form-label" for="promo-start">Fecha inicio</label>
-              <input class="form-input" type="date" id="promo-start" />
+              <label class="form-label">Fecha inicio</label>
+              <div class="datepicker-wrapper" id="promo-start-picker" data-mode="date"></div>
             </div>
             <div class="form-group">
-              <label class="form-label" for="promo-end">Fecha fin</label>
-              <input class="form-input" type="date" id="promo-end" />
+              <label class="form-label">Fecha fin</label>
+              <div class="datepicker-wrapper" id="promo-end-picker" data-mode="date"></div>
             </div>
           </div>
 
@@ -447,9 +452,13 @@
           <!-- Selector de producto -->
           <div class="form-group">
             <label class="form-label">Producto</label>
-            <select class="form-select" id="sale-product-select">
-              <option value="">Seleccionar producto...</option>
-            </select>
+            <div class="custom-select" id="sale-product-wrapper">
+              <input type="hidden" id="sale-product-select" value="" />
+              <div class="custom-select-trigger" id="sale-product-trigger">Seleccionar producto...</div>
+              <div class="custom-select-options" id="sale-product-options">
+                <div class="custom-select-option selected" data-value="">Seleccionar producto...</div>
+              </div>
+            </div>
           </div>
 
           <!-- Preview del producto seleccionado -->
@@ -482,10 +491,14 @@
 
           <div id="sale-discount-fields" style="display:none">
             <div class="form-group">
-              <label class="form-label" for="sale-discount-type">Tipo de descuento</label>
-              <select class="form-select" id="sale-discount-type">
-                <option value="">Seleccionar descuento...</option>
-              </select>
+              <label class="form-label">Tipo de descuento</label>
+              <div class="custom-select" id="sale-discount-type-wrapper">
+                <input type="hidden" id="sale-discount-type" value="" />
+                <div class="custom-select-trigger" id="sale-discount-type-trigger">Seleccionar descuento...</div>
+                <div class="custom-select-options" id="sale-discount-type-options">
+                  <div class="custom-select-option selected" data-value="">Seleccionar descuento...</div>
+                </div>
+              </div>
             </div>
             <div class="form-group">
               <label class="form-label" for="sale-discount-percentage">Porcentaje de descuento (%)</label>
@@ -494,8 +507,8 @@
           </div>
 
           <div class="form-group">
-            <label class="form-label" for="sale-date">Fecha de venta</label>
-            <input class="form-input" type="date" id="sale-date" required />
+            <label class="form-label">Fecha de venta</label>
+            <div class="datepicker-wrapper" id="sale-date-picker" data-mode="date"></div>
           </div>
 
           <!-- Cálculo en tiempo real -->
@@ -545,7 +558,63 @@
       </div>
     </div>
 
-    <script src="./config.js"></script>
+    <!-- BOTÓN FLOTANTE VENTA RÁPIDA -->
+    <button class="fab-quick-sale" id="fab-quick-sale" title="Venta rápida">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/>
+        <path d="M1 1h4l2.68 13.39a2 2 0 002 1.61h9.72a2 2 0 002-1.61L23 6H6"/>
+      </svg>
+      <span>Venta rápida</span>
+    </button>
+
+    <!-- MODAL VENTA RÁPIDA -->
+    <div class="modal-overlay" id="quick-sale-modal">
+      <div class="modal-content quick-sale-modal-content">
+        <h2 class="modal-title">Venta rápida</h2>
+        <div class="modal-error" id="quick-sale-modal-error"></div>
+
+        <!-- Agregar producto -->
+        <div class="qs-add-row">
+          <div class="custom-select qs-product-select" id="qs-product-wrapper">
+            <input type="hidden" id="qs-product-select" value="" />
+            <div class="custom-select-trigger" id="qs-product-trigger">Buscar producto...</div>
+            <div class="custom-select-options" id="qs-product-options">
+              <div class="custom-select-option selected" data-value="">Buscar producto...</div>
+            </div>
+          </div>
+          <button type="button" class="btn btn-primary btn-sm" id="qs-add-product">+ Agregar</button>
+        </div>
+
+        <!-- Carrito -->
+        <div class="qs-cart" id="qs-cart">
+          <div class="qs-cart-empty">Agrega productos para iniciar la venta</div>
+        </div>
+
+        <!-- Fecha -->
+        <div class="form-group" style="margin-top:1rem">
+          <label class="form-label">Fecha de venta</label>
+          <div class="datepicker-wrapper" id="qs-date-picker" data-mode="date"></div>
+        </div>
+
+        <!-- Notas -->
+        <div class="form-group">
+          <label class="form-label">Notas (opcional)</label>
+          <input type="text" class="form-input" id="qs-notes" placeholder="Notas de la venta..." />
+        </div>
+
+        <!-- Total general -->
+        <div class="qs-grand-total" id="qs-grand-total" style="display:none">
+          <span>Total general:</span>
+          <strong id="qs-grand-total-value">L 0.00</strong>
+        </div>
+
+        <div class="modal-actions">
+          <button type="button" class="btn btn-outline" id="qs-cancel">Cancelar</button>
+          <button type="button" class="btn btn-primary" id="qs-submit" disabled>Registrar venta</button>
+        </div>
+      </div>
+    </div>
+
     <script src="./admin.js"></script>
   </body>
 </html>

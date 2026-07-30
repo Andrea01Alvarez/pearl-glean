@@ -65,6 +65,12 @@ class Router {
   _resolve() {
     const routePath = this._toRoutePath(window.location.pathname);
 
+    // No interceptar rutas de páginas HTML independientes (admin, login, etc.)
+    if (routePath.match(/\/(admin|admin-login)(\.html)?$/)) {
+      window.location.href = this.basePath + routePath.replace(/^\//, '').replace(/\.html$/, '') + '.html';
+      return;
+    }
+
     for (const route of this.routes) {
       const match = routePath.match(route.regex);
       if (match) {

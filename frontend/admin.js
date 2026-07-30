@@ -1,9 +1,16 @@
 'use strict';
 
 // ============================================================================
-// CONFIGURACIÓN (usa config.js)
+// CONFIGURACIÓN
 // ============================================================================
-const BACKEND = BACKEND_CONFIG;
+const isLocal =
+  window.location.hostname === 'localhost' ||
+  window.location.hostname === '127.0.0.1';
+
+const BACKEND = isLocal
+  ? 'http://localhost:3300'
+  : 'https://pearl-glean.onrender.com';
+
 const API_URL = `${BACKEND}/api`;
 const SESSION_TIMEOUT = 30 * 60 * 1000; // 30 minutos
 
@@ -230,6 +237,299 @@ function categoryLabel(category) {
 }
 
 // ============================================================================
+// DATE PICKER — Componente calendario personalizado
+// ============================================================================
+var MONTH_NAMES = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
+  'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
+var MONTH_SHORT = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun',
+  'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
+var WEEKDAYS = ['D', 'L', 'M', 'M', 'J', 'V', 'S'];
+
+function createDatePicker(wrapperId, onChange) {
+  var wrapper = document.getElementById(wrapperId);
+  if (!wrapper) return null;
+
+  var mode = wrapper.getAttribute('data-mode') || 'date'; // 'date' o 'month'
+  var picker = {
+    wrapper: wrapper,
+    mode: mode,
+    view: mode === 'month' ? 'months' : 'days', // 'days', 'months', 'years'
+    viewYear: new Date().getFullYear(),
+    viewMonth: new Date().getMonth(),
+    selectedYear: null,
+    selectedMonth: null,
+    selectedDay: null,
+    onChange: onChange,
+  };
+
+  // Crear HTML interno
+  var triggerText = mode === 'month' ? 'Seleccionar mes...' : 'Seleccionar fecha...';
+  wrapper.innerHTML =
+    '<div class="datepicker-trigger">' + triggerText + '</div>' +
+    '<div class="datepicker-dropdown">' +
+      '<div class="datepicker-header">' +
+        '<button type="button" class="datepicker-nav" data-dir="prev">&#8249;</button>' +
+        '<span class="datepicker-header-label"></span>' +
+        '<button type="button" class="datepicker-nav" data-dir="next">&#8250;</button>' +
+      '</div>' +
+      '<div class="datepicker-body"></div>' +
+      '<button type="button" class="datepicker-clear">Limpiar</button>' +
+    '</div>';
+
+  var trigger = wrapper.querySelector('.datepicker-trigger');
+  var dropdown = wrapper.querySelector('.datepicker-dropdown');
+  var headerLabel = wrapper.querySelector('.datepicker-header-label');
+  var body = wrapper.querySelector('.datepicker-body');
+  var clearBtn = wrapper.querySelector('.datepicker-clear');
+  var navBtns = wrapper.querySelectorAll('.datepicker-nav');
+
+  function render() {
+    if (picker.view === 'days') renderDays();
+    else if (picker.view === 'months') renderMonths();
+    else if (picker.view === 'years') renderYears();
+  }
+
+  function renderDays() {
+    headerLabel.textContent = MONTH_NAMES[picker.viewMonth] + ' ' + picker.viewYear;
+
+    var firstDay = new Date(picker.viewYear, picker.viewMonth, 1).getDay();
+    var daysInMonth = new Date(picker.viewYear, picker.viewMonth + 1, 0).getDate();
+    var daysInPrev = new Date(picker.viewYear, picker.viewMonth, 0).getDate();
+
+    var today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    var html = '<div class="datepicker-weekdays">';
+    WEEKDAYS.forEach(function (d) { html += '<span class="datepicker-weekday">' + d + '</span>'; });
+    html += '</div><div class="datepicker-days">';
+
+    // Días del mes anterior
+    for (var p = firstDay - 1; p >= 0; p--) {
+      html += '<div class="datepicker-day other-month" data-day="' + (daysInPrev - p) + '" data-month="' + (picker.viewMonth - 1) + '">' + (daysInPrev - p) + '</div>';
+    }
+
+    // Días del mes actual
+    for (var d = 1; d <= daysInMonth; d++) {
+      var classes = 'datepicker-day';
+      var cellDate = new Date(picker.viewYear, picker.viewMonth, d);
+      if (cellDate.getTime() === today.getTime()) classes += ' today';
+      if (picker.selectedYear === picker.viewYear && picker.selectedMonth === picker.viewMonth && picker.selectedDay === d) {
+        classes += ' selected';
+      }
+      html += '<div class="' + classes + '" data-day="' + d + '" data-month="' + picker.viewMonth + '">' + d + '</div>';
+    }
+
+    // Días del mes siguiente
+    var totalCells = firstDay + daysInMonth;
+    var remaining = (totalCells % 7 === 0) ? 0 : 7 - (totalCells % 7);
+    for (var n = 1; n <= remaining; n++) {
+      html += '<div class="datepicker-day other-month" data-day="' + n + '" data-month="' + (picker.viewMonth + 1) + '">' + n + '</div>';
+    }
+
+    html += '</div>';
+    body.innerHTML = html;
+
+    // Eventos en días
+    body.querySelectorAll('.datepicker-day').forEach(function (el) {
+      el.addEventListener('click', function () {
+        var day = parseInt(el.getAttribute('data-day'));
+        var month = parseInt(el.getAttribute('data-month'));
+        var year = picker.viewYear;
+
+        if (month < 0) { month = 11; year--; }
+        else if (month > 11) { month = 0; year++; }
+
+        picker.selectedYear = year;
+        picker.selectedMonth = month;
+        picker.selectedDay = day;
+        picker.viewYear = year;
+        picker.viewMonth = month;
+
+        updateTriggerText();
+        close();
+        if (picker.onChange) picker.onChange(getValue());
+      });
+    });
+  }
+
+  function renderMonths() {
+    headerLabel.textContent = picker.viewYear;
+
+    var html = '<div class="datepicker-months">';
+    for (var m = 0; m < 12; m++) {
+      var classes = 'datepicker-month-cell';
+      if (picker.selectedYear === picker.viewYear && picker.selectedMonth === m) classes += ' selected';
+      html += '<div class="' + classes + '" data-month="' + m + '">' + MONTH_SHORT[m] + '</div>';
+    }
+    html += '</div>';
+    body.innerHTML = html;
+
+    body.querySelectorAll('.datepicker-month-cell').forEach(function (el) {
+      el.addEventListener('click', function () {
+        var m = parseInt(el.getAttribute('data-month'));
+        picker.selectedMonth = m;
+        picker.selectedYear = picker.viewYear;
+        picker.viewMonth = m;
+
+        if (mode === 'month') {
+          updateTriggerText();
+          close();
+          if (picker.onChange) picker.onChange(getValue());
+        } else {
+          picker.view = 'days';
+          render();
+        }
+      });
+    });
+  }
+
+  function renderYears() {
+    var startYear = picker.viewYear - 4;
+    headerLabel.textContent = startYear + ' - ' + (startYear + 8);
+
+    var html = '<div class="datepicker-years">';
+    for (var y = startYear; y <= startYear + 8; y++) {
+      var classes = 'datepicker-year-cell';
+      if (picker.selectedYear === y) classes += ' selected';
+      html += '<div class="' + classes + '" data-year="' + y + '">' + y + '</div>';
+    }
+    html += '</div>';
+    body.innerHTML = html;
+
+    body.querySelectorAll('.datepicker-year-cell').forEach(function (el) {
+      el.addEventListener('click', function () {
+        var y = parseInt(el.getAttribute('data-year'));
+        picker.viewYear = y;
+        picker.selectedYear = y;
+        picker.view = 'months';
+        render();
+      });
+    });
+  }
+
+  function updateTriggerText() {
+    if (mode === 'month' && picker.selectedMonth !== null && picker.selectedYear !== null) {
+      trigger.textContent = MONTH_NAMES[picker.selectedMonth] + ' ' + picker.selectedYear;
+    } else if (mode === 'date' && picker.selectedDay !== null) {
+      var dd = String(picker.selectedDay).padStart(2, '0');
+      var mm = String(picker.selectedMonth + 1).padStart(2, '0');
+      trigger.textContent = dd + '/' + mm + '/' + picker.selectedYear;
+    } else {
+      trigger.textContent = mode === 'month' ? 'Seleccionar mes...' : 'Seleccionar fecha...';
+    }
+  }
+
+  function getValue() {
+    if (mode === 'month' && picker.selectedMonth !== null && picker.selectedYear !== null) {
+      return picker.selectedYear + '-' + String(picker.selectedMonth + 1).padStart(2, '0');
+    } else if (mode === 'date' && picker.selectedDay !== null) {
+      return picker.selectedYear + '-' + String(picker.selectedMonth + 1).padStart(2, '0') + '-' + String(picker.selectedDay).padStart(2, '0');
+    }
+    return '';
+  }
+
+  function setValue(dateStr) {
+    if (!dateStr) {
+      picker.selectedYear = null;
+      picker.selectedMonth = null;
+      picker.selectedDay = null;
+      updateTriggerText();
+      return;
+    }
+    var parts = dateStr.split('-');
+    picker.selectedYear = parseInt(parts[0]);
+    picker.selectedMonth = parseInt(parts[1]) - 1;
+    picker.viewYear = picker.selectedYear;
+    picker.viewMonth = picker.selectedMonth;
+    if (parts[2]) {
+      picker.selectedDay = parseInt(parts[2]);
+    }
+    updateTriggerText();
+  }
+
+  function open() {
+    // Cerrar todos los demás pickers abiertos
+    document.querySelectorAll('.datepicker-wrapper.open').forEach(function (el) {
+      if (el !== wrapper) el.classList.remove('open');
+    });
+    // Posicionar dropdown con position:fixed relativo al trigger
+    var rect = trigger.getBoundingClientRect();
+    dropdown.style.top = (rect.bottom + 4) + 'px';
+    dropdown.style.left = rect.left + 'px';
+    wrapper.classList.add('open');
+    render();
+  }
+
+  function close() {
+    wrapper.classList.remove('open');
+  }
+
+  // Event: abrir/cerrar
+  trigger.addEventListener('click', function (e) {
+    e.stopPropagation();
+    if (wrapper.classList.contains('open')) close();
+    else open();
+  });
+
+  // Event: navegación
+  navBtns.forEach(function (btn) {
+    btn.addEventListener('click', function (e) {
+      e.stopPropagation();
+      var dir = btn.getAttribute('data-dir') === 'prev' ? -1 : 1;
+      if (picker.view === 'days') {
+        picker.viewMonth += dir;
+        if (picker.viewMonth < 0) { picker.viewMonth = 11; picker.viewYear--; }
+        else if (picker.viewMonth > 11) { picker.viewMonth = 0; picker.viewYear++; }
+      } else if (picker.view === 'months') {
+        picker.viewYear += dir;
+      } else if (picker.view === 'years') {
+        picker.viewYear += dir * 9;
+      }
+      render();
+    });
+  });
+
+  // Event: click en label de header (cambiar vista)
+  headerLabel.addEventListener('click', function (e) {
+    e.stopPropagation();
+    if (picker.view === 'days') picker.view = 'months';
+    else if (picker.view === 'months') picker.view = 'years';
+    render();
+  });
+
+  // No cerrar al hacer click dentro del dropdown
+  dropdown.addEventListener('click', function (e) {
+    e.stopPropagation();
+  });
+
+  // Event: limpiar (registrado después del dropdown para que siempre se ejecute)
+  clearBtn.addEventListener('click', function (e) {
+    e.preventDefault();
+    e.stopImmediatePropagation();
+    picker.selectedYear = null;
+    picker.selectedMonth = null;
+    picker.selectedDay = null;
+    updateTriggerText();
+    close();
+    if (picker.onChange) picker.onChange('');
+  });
+
+  // API pública
+  picker.getValue = getValue;
+  picker.setValue = setValue;
+  picker.render = render;
+
+  return picker;
+}
+
+// Cerrar todos los pickers al hacer click fuera
+document.addEventListener('click', function () {
+  document.querySelectorAll('.datepicker-wrapper.open').forEach(function (el) {
+    el.classList.remove('open');
+  });
+});
+
+// ============================================================================
 // CARGA DE DATOS
 // ============================================================================
 async function loadProducts() {
@@ -397,17 +697,37 @@ function renderTable() {
 function initCustomSelect(wrapperId, onChange) {
   const wrapper = document.getElementById(wrapperId);
   const trigger = wrapper.querySelector('.custom-select-trigger');
+  const optionsContainer = wrapper.querySelector('.custom-select-options');
   const options = wrapper.querySelectorAll('.custom-select-option');
   const hiddenInput = wrapper.querySelector('input[type="hidden"]');
 
-  trigger.addEventListener('click', function (e) {
-    e.stopPropagation();
-    // Cerrar otros selects abiertos
-    document.querySelectorAll('.custom-select.open').forEach(function (el) {
-      if (el !== wrapper) el.classList.remove('open');
+  // Solo agregar listener al trigger una vez
+  if (!wrapper._triggerInit) {
+    trigger.addEventListener('click', function (e) {
+      e.stopPropagation();
+      // Cerrar otros selects abiertos
+      document.querySelectorAll('.custom-select.open').forEach(function (el) {
+        if (el !== wrapper) el.classList.remove('open');
+      });
+
+      if (wrapper.classList.contains('open')) {
+        wrapper.classList.remove('open');
+      } else {
+        // Posicionar dropdown con fixed si está dentro de un modal
+        if (wrapper.closest('.modal-content')) {
+          var opts = wrapper.querySelector('.custom-select-options');
+          var rect = trigger.getBoundingClientRect();
+          opts.style.position = 'fixed';
+          opts.style.top = (rect.bottom + 2) + 'px';
+          opts.style.left = rect.left + 'px';
+          opts.style.width = rect.width + 'px';
+          opts.style.zIndex = '2000';
+        }
+        wrapper.classList.add('open');
+      }
     });
-    wrapper.classList.toggle('open');
-  });
+    wrapper._triggerInit = true;
+  }
 
   options.forEach(function (option) {
     option.addEventListener('click', function (e) {
@@ -444,6 +764,38 @@ initCustomSelect('product-category-wrapper', function () {
   clearFieldError('product-category');
   validateModalFields();
 });
+initCustomSelect('promo-type-wrapper');
+
+// Función para llenar custom-selects dinámicamente
+function populateDynamicSelect(wrapperId, options, placeholder) {
+  var wrapper = document.getElementById(wrapperId);
+  if (!wrapper) return;
+  var trigger = wrapper.querySelector('.custom-select-trigger');
+  var optionsContainer = wrapper.querySelector('.custom-select-options');
+  var hiddenInput = wrapper.querySelector('input[type="hidden"]');
+
+  hiddenInput.value = '';
+  trigger.textContent = placeholder;
+
+  var html = '<div class="custom-select-option selected" data-value="">' + placeholder + '</div>';
+  options.forEach(function (opt) {
+    var attrs = '';
+    if (opt.dataAttrs) {
+      for (var key in opt.dataAttrs) {
+        attrs += ' data-' + key + '="' + opt.dataAttrs[key] + '"';
+      }
+    }
+    html += '<div class="custom-select-option" data-value="' + escapeHtml(opt.value) + '"' + attrs + '>' + escapeHtml(opt.label) + '</div>';
+  });
+  optionsContainer.innerHTML = html;
+
+  // Reinicializar eventos
+  initCustomSelect(wrapperId, wrapper._onChange || null);
+}
+
+function setDynamicSelectValue(wrapperId, value) {
+  setCustomSelectValue(wrapperId, value);
+}
 
 // Filtros — search input
 document.getElementById('filter-search').addEventListener('input', renderTable);
@@ -996,6 +1348,9 @@ function openCreatePromoModal() {
   document.getElementById('btn-submit-promo').textContent = 'Crear';
   document.getElementById('promo-form').reset();
   document.getElementById('promo-id').value = '';
+  setCustomSelectValue('promo-type-wrapper', '');
+  if (promoStartPicker) promoStartPicker.setValue('');
+  if (promoEndPicker) promoEndPicker.setValue('');
   populatePromoProductsSelector([]);
   hidePromoModalError();
   document.getElementById('promo-modal').classList.add('visible');
@@ -1014,11 +1369,11 @@ function openEditPromoModal(id) {
   document.getElementById('promo-id').value = id;
 
   document.getElementById('promo-name').value = promo.name || '';
-  document.getElementById('promo-type').value = promo.type || '';
+  setCustomSelectValue('promo-type-wrapper', promo.type || '');
   document.getElementById('promo-discount').value = promo.discountPercentage || '';
   document.getElementById('promo-label').value = promo.label || '';
-  document.getElementById('promo-start').value = promo.startDate ? promo.startDate.split('T')[0] : '';
-  document.getElementById('promo-end').value = promo.endDate ? promo.endDate.split('T')[0] : '';
+  if (promoStartPicker) promoStartPicker.setValue(promo.startDate ? promo.startDate.split('T')[0] : '');
+  if (promoEndPicker) promoEndPicker.setValue(promo.endDate ? promo.endDate.split('T')[0] : '');
 
   var selectedIds = (promo.products || []).map(function (p) { return p.id; });
   populatePromoProductsSelector(selectedIds);
@@ -1060,8 +1415,8 @@ document.getElementById('promo-form').addEventListener('submit', function (e) {
   var type = document.getElementById('promo-type').value;
   var discountPercentage = parseFloat(document.getElementById('promo-discount').value) || 0;
   var label = document.getElementById('promo-label').value.trim();
-  var startDate = document.getElementById('promo-start').value;
-  var endDate = document.getElementById('promo-end').value;
+  var startDate = promoStartPicker ? promoStartPicker.getValue() : '';
+  var endDate = promoEndPicker ? promoEndPicker.getValue() : '';
   var productIds = getSelectedPromoProductIds();
 
   // Validaciones
@@ -1269,31 +1624,39 @@ function renderDashboardSales() {
     }
   }
 
-  // Establecer mes actual en el filtro
-  var monthFilter = document.getElementById('dashboard-month-filter');
-  if (!monthFilter.value) {
-    monthFilter.value = currentYear + '-' + String(currentMonth + 1).padStart(2, '0');
+  // Establecer rango por defecto: primer día del mes actual hasta hoy
+  if (dashboardStartPicker && !dashboardStartPicker.getValue()) {
+    var firstDay = currentYear + '-' + String(currentMonth + 1).padStart(2, '0') + '-01';
+    dashboardStartPicker.setValue(firstDay);
+  }
+  if (dashboardEndPicker && !dashboardEndPicker.getValue()) {
+    var today = new Date();
+    var todayStr = today.getFullYear() + '-' + String(today.getMonth() + 1).padStart(2, '0') + '-' + String(today.getDate()).padStart(2, '0');
+    dashboardEndPicker.setValue(todayStr);
   }
 
   renderDashboardCharts();
 }
 
 function renderDashboardCharts() {
-  var monthFilter = document.getElementById('dashboard-month-filter').value;
-  if (!monthFilter) return;
+  var startVal = dashboardStartPicker ? dashboardStartPicker.getValue() : '';
+  var endVal = dashboardEndPicker ? dashboardEndPicker.getValue() : '';
+  if (!startVal || !endVal) return;
 
-  var parts = monthFilter.split('-');
-  var filterYear = parseInt(parts[0]);
-  var filterMonth = parseInt(parts[1]) - 1;
+  var startDate = new Date(startVal + 'T00:00:00');
+  var endDate = new Date(endVal + 'T23:59:59');
 
-  // Filtrar ventas del mes seleccionado
+  // Filtrar ventas dentro del rango
   var filteredSales = allSales.filter(function (s) {
     var d = new Date(s.saleDate);
-    return d.getMonth() === filterMonth && d.getFullYear() === filterYear;
+    return d >= startDate && d <= endDate;
   });
 
-  renderWeeklyChart(filteredSales, filterYear, filterMonth);
-  renderMonthlyChart();
+  // Para el gráfico semanal: usar el mes de la fecha inicio
+  renderWeeklyChart(filteredSales, startDate.getFullYear(), startDate.getMonth());
+
+  // Para el gráfico mensual: centrar en el mes de la fecha inicio
+  renderMonthlyChart(startDate.getFullYear(), startDate.getMonth());
 }
 
 function renderWeeklyChart(salesInMonth, year, month) {
@@ -1350,15 +1713,14 @@ function renderWeeklyChart(salesInMonth, year, month) {
   });
 }
 
-function renderMonthlyChart() {
-  // Agrupar ventas por los últimos 6 meses
-  var now = new Date();
+function renderMonthlyChart(centerYear, centerMonth) {
+  // Mostrar 6 meses: 3 antes del mes seleccionado, el mes seleccionado, y 2 después
   var months = [];
   var totals = [];
   var monthNames = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
 
-  for (var i = 5; i >= 0; i--) {
-    var d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+  for (var i = -3; i <= 2; i++) {
+    var d = new Date(centerYear, centerMonth + i, 1);
     var m = d.getMonth();
     var y = d.getFullYear();
     months.push(monthNames[m] + ' ' + y);
@@ -1411,52 +1773,23 @@ function renderMonthlyChart() {
   });
 }
 
-// Listener para el filtro de mes
-document.getElementById('dashboard-month-filter').addEventListener('change', renderDashboardCharts);
+// Dashboard month picker se inicializa abajo en INICIALIZACIÓN
 
 // ============================================================================
 // VENTAS — Tabla
 // ============================================================================
-function getWeekRange(weekValue) {
-  // weekValue format: "2026-W30"
-  var parts = weekValue.split('-W');
-  var year = parseInt(parts[0]);
-  var week = parseInt(parts[1]);
-
-  // Calcular primer día de la semana (lunes)
-  var jan4 = new Date(year, 0, 4);
-  var dayOfWeek = jan4.getDay() || 7;
-  var monday = new Date(jan4);
-  monday.setDate(jan4.getDate() - dayOfWeek + 1 + (week - 1) * 7);
-
-  var sunday = new Date(monday);
-  sunday.setDate(monday.getDate() + 6);
-
-  return { start: monday, end: sunday };
-}
 
 function getFilteredSales() {
-  var weekFilter = document.getElementById('sales-week-filter');
-  var monthFilter = document.getElementById('sales-month-filter');
-
-  // Filtro por semana tiene prioridad
-  if (weekFilter && weekFilter.value) {
-    var range = getWeekRange(weekFilter.value);
-    return allSales.filter(function (s) {
-      var d = new Date(s.saleDate);
-      d.setHours(0, 0, 0, 0);
-      return d >= range.start && d <= range.end;
-    });
-  }
-
-  if (monthFilter && monthFilter.value) {
-    var parts = monthFilter.value.split('-');
-    var fYear = parseInt(parts[0]);
-    var fMonth = parseInt(parts[1]) - 1;
-    return allSales.filter(function (s) {
-      var d = new Date(s.saleDate);
-      return d.getMonth() === fMonth && d.getFullYear() === fYear;
-    });
+  if (salesDatePicker) {
+    var dateVal = salesDatePicker.getValue();
+    if (dateVal) {
+      var filterDate = new Date(dateVal + 'T00:00:00');
+      return allSales.filter(function (s) {
+        var d = new Date(s.saleDate);
+        d.setHours(0, 0, 0, 0);
+        return d.getTime() === filterDate.getTime();
+      });
+    }
   }
 
   return allSales;
@@ -1515,13 +1848,13 @@ function renderSalesTable() {
 // VENTAS — Modal crear/editar
 // ============================================================================
 function populateSaleProductSelect() {
-  var select = document.getElementById('sale-product-select');
   var activeProducts = allProducts.filter(function (p) { return p.isActive && (p.stock > 0); });
-
-  select.innerHTML = '<option value="">Seleccionar producto...</option>' +
-    activeProducts.map(function (p) {
-      return '<option value="' + p.id + '">' + escapeHtml(p.name) + ' — ' + formatLempiras(p.price) + ' (Stock: ' + (p.stock || 0) + ')</option>';
-    }).join('');
+  var options = activeProducts.map(function (p) {
+    return { value: p.id, label: p.name + ' — ' + formatLempiras(p.price) + ' (Stock: ' + (p.stock || 0) + ')' };
+  });
+  populateDynamicSelect('sale-product-wrapper', options, 'Seleccionar producto...');
+  document.getElementById('sale-product-wrapper')._onChange = onSaleProductChange;
+  initCustomSelect('sale-product-wrapper', onSaleProductChange);
 }
 
 function getProductActivePromotion(product) {
@@ -1539,11 +1872,9 @@ function getProductActivePromotion(product) {
 }
 
 function populateDiscountTypeSelect(selectedPromoId) {
-  var select = document.getElementById('sale-discount-type');
   var now = new Date();
   now.setHours(0, 0, 0, 0);
 
-  // Filtrar solo promociones activas y vigentes
   var activePromos = allPromotions.filter(function (p) {
     if (!p.isActive) return false;
     if (p.startDate && new Date(p.startDate) > now) return false;
@@ -1551,20 +1882,35 @@ function populateDiscountTypeSelect(selectedPromoId) {
     return true;
   });
 
-  select.innerHTML = '<option value="">Seleccionar descuento...</option>' +
-    activePromos.map(function (p) {
-      var label = escapeHtml(p.name) + ' (' + Number(p.discountPercentage) + '%)';
-      return '<option value="' + p.id + '" data-percentage="' + (p.discountPercentage || 0) + '">' + label + '</option>';
-    }).join('');
+  var options = activePromos.map(function (p) {
+    return {
+      value: p.id,
+      label: p.name + ' (' + Number(p.discountPercentage) + '%)',
+      dataAttrs: { percentage: p.discountPercentage || 0 }
+    };
+  });
+  populateDynamicSelect('sale-discount-type-wrapper', options, 'Seleccionar descuento...');
+  document.getElementById('sale-discount-type-wrapper')._onChange = function (val) {
+    // Auto-llenar porcentaje
+    var wrapper = document.getElementById('sale-discount-type-wrapper');
+    var selected = wrapper.querySelector('.custom-select-option.selected');
+    if (selected && selected.getAttribute('data-value')) {
+      var pct = selected.getAttribute('data-percentage');
+      document.getElementById('sale-discount-percentage').value = pct || '';
+    } else {
+      document.getElementById('sale-discount-percentage').value = '';
+    }
+    updateSaleCalculation();
+  };
+  initCustomSelect('sale-discount-type-wrapper', document.getElementById('sale-discount-type-wrapper')._onChange);
 
   if (selectedPromoId) {
-    select.value = selectedPromoId;
+    setCustomSelectValue('sale-discount-type-wrapper', selectedPromoId);
   }
 }
 
 function onSaleProductChange() {
-  var select = document.getElementById('sale-product-select');
-  var productId = select.value;
+  var productId = document.getElementById('sale-product-select').value;
   var preview = document.getElementById('sale-product-preview');
 
   if (!productId) {
@@ -1572,7 +1918,7 @@ function onSaleProductChange() {
     document.getElementById('sale-unit-price').value = '';
     document.getElementById('sale-has-discount').checked = false;
     document.getElementById('sale-discount-fields').style.display = 'none';
-    document.getElementById('sale-discount-type').value = '';
+    setCustomSelectValue('sale-discount-type-wrapper', '');
     document.getElementById('sale-discount-percentage').value = '';
     document.getElementById('sale-quantity').value = '';
     document.getElementById('sale-quantity').removeAttribute('max');
@@ -1619,7 +1965,7 @@ function onSaleProductChange() {
   } else {
     discountCheck.checked = false;
     discountFields.style.display = 'none';
-    document.getElementById('sale-discount-type').value = '';
+    setCustomSelectValue('sale-discount-type-wrapper', '');
     document.getElementById('sale-discount-percentage').value = '';
   }
 
@@ -1665,13 +2011,13 @@ function openCreateSaleModal() {
   document.getElementById('sale-product-preview').style.display = 'none';
   document.getElementById('sale-discount-fields').style.display = 'none';
   document.getElementById('sale-calculation').style.display = 'none';
-  document.getElementById('sale-product-select').disabled = false;
 
   // Fecha de hoy por defecto
   var today = new Date().toISOString().split('T')[0];
-  document.getElementById('sale-date').value = today;
+  if (saleDatePicker) saleDatePicker.setValue(today);
 
   populateSaleProductSelect();
+  setCustomSelectValue('sale-product-wrapper', '');
   hideSaleModalError();
   document.getElementById('sale-modal').classList.add('visible');
 }
@@ -1691,49 +2037,49 @@ function openEditSaleModal(id) {
   populateSaleProductSelect();
 
   // Si el producto ya no está en la lista (inactivo), agregarlo temporalmente
-  var select = document.getElementById('sale-product-select');
-  var optionExists = false;
-  for (var i = 0; i < select.options.length; i++) {
-    if (select.options[i].value === sale.productId) { optionExists = true; break; }
-  }
-  if (!optionExists) {
-    var opt = document.createElement('option');
-    opt.value = sale.productId;
-    opt.textContent = sale.productName + ' (producto actual)';
-    select.appendChild(opt);
+  var optionsContainer = document.getElementById('sale-product-options');
+  var exists = optionsContainer.querySelector('[data-value="' + sale.productId + '"]');
+  if (!exists) {
+    var tempDiv = document.createElement('div');
+    tempDiv.className = 'custom-select-option';
+    tempDiv.setAttribute('data-value', sale.productId);
+    tempDiv.textContent = sale.productName + ' (producto actual)';
+    optionsContainer.appendChild(tempDiv);
+    initCustomSelect('sale-product-wrapper', onSaleProductChange);
   }
 
-  select.value = sale.productId;
-  select.disabled = true; // No cambiar producto en edición
+  setCustomSelectValue('sale-product-wrapper', sale.productId);
 
   // Llenar campos
   document.getElementById('sale-quantity').value = sale.quantity;
   document.getElementById('sale-unit-price').value = sale.unitPrice;
   document.getElementById('sale-has-discount').checked = sale.hasDiscount;
   document.getElementById('sale-discount-fields').style.display = sale.hasDiscount ? 'block' : 'none';
-  document.getElementById('sale-date').value = sale.saleDate ? sale.saleDate.split('T')[0] : '';
+  if (saleDatePicker) saleDatePicker.setValue(sale.saleDate ? sale.saleDate.split('T')[0] : '');
 
-  // Llenar select de descuentos y tratar de matchear por nombre
+  // Llenar select de descuentos
   if (sale.hasDiscount) {
     populateDiscountTypeSelect('');
     // Buscar la promo que coincida por nombre
-    var dtSelect = document.getElementById('sale-discount-type');
     var matched = false;
-    for (var j = 0; j < dtSelect.options.length; j++) {
-      if (dtSelect.options[j].textContent === sale.discountType) {
-        dtSelect.selectedIndex = j;
+    var dtOptions = document.querySelectorAll('#sale-discount-type-options .custom-select-option');
+    dtOptions.forEach(function (opt) {
+      if (opt.textContent === sale.discountType) {
+        setCustomSelectValue('sale-discount-type-wrapper', opt.getAttribute('data-value'));
         matched = true;
-        break;
       }
-    }
-    // Si no matchea (promo ya no existe), agregar opción temporal
+    });
+    // Si no matchea, agregar opción temporal
     if (!matched && sale.discountType) {
-      var tempOpt = document.createElement('option');
-      tempOpt.value = 'custom';
-      tempOpt.textContent = sale.discountType;
+      var dtContainer = document.getElementById('sale-discount-type-options');
+      var tempOpt = document.createElement('div');
+      tempOpt.className = 'custom-select-option';
+      tempOpt.setAttribute('data-value', 'custom');
       tempOpt.setAttribute('data-percentage', sale.discountPercentage || 0);
-      dtSelect.appendChild(tempOpt);
-      dtSelect.value = 'custom';
+      tempOpt.textContent = sale.discountType;
+      dtContainer.appendChild(tempOpt);
+      initCustomSelect('sale-discount-type-wrapper', document.getElementById('sale-discount-type-wrapper')._onChange);
+      setCustomSelectValue('sale-discount-type-wrapper', 'custom');
     }
   }
   document.getElementById('sale-discount-percentage').value = sale.discountPercentage || '';
@@ -1774,7 +2120,7 @@ function hideSaleModalError() {
 }
 
 // Event listeners para el modal de ventas
-document.getElementById('sale-product-select').addEventListener('change', onSaleProductChange);
+// (sale-product-select se conecta via initCustomSelect en populateSaleProductSelect)
 document.getElementById('sale-quantity').addEventListener('input', function () {
   var productId = document.getElementById('sale-product-select').value;
   var product = allProducts.find(function (p) { return p.id === productId; });
@@ -1808,36 +2154,15 @@ document.getElementById('sale-has-discount').addEventListener('change', function
   if (this.checked) {
     populateDiscountTypeSelect('');
   } else {
-    document.getElementById('sale-discount-type').value = '';
+    setCustomSelectValue('sale-discount-type-wrapper', '');
     document.getElementById('sale-discount-percentage').value = '';
   }
   updateSaleCalculation();
 });
 
-// Al seleccionar un descuento del dropdown, auto-llenar el porcentaje
-document.getElementById('sale-discount-type').addEventListener('change', function () {
-  var selected = this.options[this.selectedIndex];
-  if (selected && selected.value) {
-    var pct = selected.getAttribute('data-percentage');
-    document.getElementById('sale-discount-percentage').value = pct || '';
-  } else {
-    document.getElementById('sale-discount-percentage').value = '';
-  }
-  updateSaleCalculation();
-});
-
-// Filtros de ventas (mes y semana son excluyentes)
-document.getElementById('sales-month-filter').addEventListener('change', function () {
-  document.getElementById('sales-week-filter').value = '';
-  renderSalesTable();
-});
-document.getElementById('sales-week-filter').addEventListener('change', function () {
-  document.getElementById('sales-month-filter').value = '';
-  renderSalesTable();
-});
+// Filtros de ventas — se conectan via date pickers en INICIALIZACIÓN
 document.getElementById('sales-filter-clear').addEventListener('click', function () {
-  document.getElementById('sales-month-filter').value = '';
-  document.getElementById('sales-week-filter').value = '';
+  if (salesDatePicker) salesDatePicker.setValue('');
   renderSalesTable();
 });
 
@@ -1859,13 +2184,16 @@ document.getElementById('sale-form').addEventListener('submit', function (e) {
   var quantity = parseInt(document.getElementById('sale-quantity').value) || 0;
   var unitPrice = parseFloat(document.getElementById('sale-unit-price').value) || 0;
   var hasDiscount = document.getElementById('sale-has-discount').checked;
-  var discountTypeSelect = document.getElementById('sale-discount-type');
   var discountTypeName = '';
-  if (hasDiscount && discountTypeSelect.selectedIndex > 0) {
-    discountTypeName = discountTypeSelect.options[discountTypeSelect.selectedIndex].textContent;
+  if (hasDiscount) {
+    var dtWrapper = document.getElementById('sale-discount-type-wrapper');
+    var dtSelected = dtWrapper.querySelector('.custom-select-option.selected');
+    if (dtSelected && dtSelected.getAttribute('data-value')) {
+      discountTypeName = dtSelected.textContent;
+    }
   }
   var discountPercentage = hasDiscount ? (parseFloat(document.getElementById('sale-discount-percentage').value) || 0) : 0;
-  var saleDate = document.getElementById('sale-date').value;
+  var saleDate = saleDatePicker ? saleDatePicker.getValue() : '';
 
   // Validaciones
   if (!productId) { showSaleModalError('Selecciona un producto.'); return; }
@@ -1890,11 +2218,12 @@ document.getElementById('sale-form').addEventListener('submit', function (e) {
   var total = subtotal - (subtotal * discountPercentage / 100);
 
   var productName = '';
-  var selectEl = document.getElementById('sale-product-select');
-  var selectedOption = selectEl.options[selectEl.selectedIndex];
-  if (selectedOption) {
-    var prod = allProducts.find(function (p) { return p.id === productId; });
-    productName = prod ? prod.name : selectedOption.textContent;
+  var prod = allProducts.find(function (p) { return p.id === productId; });
+  if (prod) {
+    productName = prod.name;
+  } else {
+    var selOpt = document.querySelector('#sale-product-options .custom-select-option.selected');
+    productName = selOpt ? selOpt.textContent : '';
   }
 
   var saleData = {
@@ -1980,6 +2309,303 @@ function deleteSale(id) {
 }
 
 // ============================================================================
+// VENTA RÁPIDA
+// ============================================================================
+var quickSaleCart = [];
+
+function openQuickSaleModal() {
+  quickSaleCart = [];
+
+  // Poblar selector de productos con stock disponible
+  var options = allProducts
+    .filter(function (p) { return !p.isDeleted && (p.stock || 0) > 0; })
+    .map(function (p) {
+      return { value: p.id, label: p.name + ' — L ' + Number(p.price).toFixed(2) + ' (Stock: ' + (p.stock || 0) + ')' };
+    });
+  populateDynamicSelect('qs-product-wrapper', options, 'Buscar producto...');
+
+  // Fecha por defecto: hoy
+  if (qsDatePicker) {
+    var today = new Date();
+    var todayStr = today.getFullYear() + '-' + String(today.getMonth() + 1).padStart(2, '0') + '-' + String(today.getDate()).padStart(2, '0');
+    qsDatePicker.setValue(todayStr);
+  }
+
+  document.getElementById('qs-notes').value = '';
+  hideQuickSaleError();
+  renderQuickSaleCart();
+  document.getElementById('quick-sale-modal').classList.add('visible');
+}
+
+function closeQuickSaleModal() {
+  document.getElementById('quick-sale-modal').classList.remove('visible');
+  quickSaleCart = [];
+}
+
+function showQuickSaleError(msg) {
+  var el = document.getElementById('quick-sale-modal-error');
+  el.textContent = msg;
+  el.style.display = 'block';
+}
+
+function hideQuickSaleError() {
+  var el = document.getElementById('quick-sale-modal-error');
+  el.textContent = '';
+  el.style.display = 'none';
+}
+
+function addProductToQuickSale() {
+  var productId = document.getElementById('qs-product-select').value;
+  if (!productId) {
+    showQuickSaleError('Selecciona un producto para agregar.');
+    return;
+  }
+
+  // Si ya está en el carrito, incrementar cantidad
+  var existing = quickSaleCart.find(function (item) { return item.productId === productId; });
+  if (existing) {
+    if (existing.quantity < existing.maxStock) {
+      existing.quantity++;
+      hideQuickSaleError();
+      renderQuickSaleCart();
+    } else {
+      showQuickSaleError('Ya agregaste el máximo de stock disponible para ese producto.');
+    }
+    return;
+  }
+
+  var product = allProducts.find(function (p) { return p.id === productId; });
+  if (!product) return;
+
+  var promo = getProductActivePromotion(product);
+  var item = {
+    productId: product.id,
+    productName: product.name,
+    imageUrl: product.imageUrl || '',
+    unitPrice: Number(product.price),
+    quantity: 1,
+    maxStock: product.stock || 0,
+    hasDiscount: !!promo,
+    discountType: promo ? promo.name : '',
+    discountPercentage: promo ? Number(promo.discountPercentage || 0) : 0
+  };
+
+  quickSaleCart.push(item);
+  hideQuickSaleError();
+  renderQuickSaleCart();
+
+  // Reset selector
+  var hiddenInput = document.getElementById('qs-product-select');
+  hiddenInput.value = '';
+  var trigger = document.getElementById('qs-product-trigger');
+  if (trigger) trigger.textContent = 'Buscar producto...';
+}
+
+function removeFromQuickSale(productId) {
+  quickSaleCart = quickSaleCart.filter(function (item) { return item.productId !== productId; });
+  renderQuickSaleCart();
+}
+
+function updateQuickSaleQty(productId, newQty) {
+  var item = quickSaleCart.find(function (i) { return i.productId === productId; });
+  if (!item) return;
+  newQty = Math.max(1, Math.min(newQty, item.maxStock));
+  item.quantity = newQty;
+  renderQuickSaleCart();
+}
+
+function getItemSubtotal(item) {
+  var subtotal = item.unitPrice * item.quantity;
+  if (item.hasDiscount && item.discountPercentage > 0) {
+    return subtotal - (subtotal * item.discountPercentage / 100);
+  }
+  return subtotal;
+}
+
+function renderQuickSaleCart() {
+  var cartEl = document.getElementById('qs-cart');
+  var totalEl = document.getElementById('qs-grand-total');
+  var submitBtn = document.getElementById('qs-submit');
+
+  if (quickSaleCart.length === 0) {
+    cartEl.innerHTML = '<div class="qs-cart-empty">Agrega productos para iniciar la venta</div>';
+    totalEl.style.display = 'none';
+    submitBtn.disabled = true;
+    return;
+  }
+
+  var grandTotal = 0;
+  var html = '';
+
+  quickSaleCart.forEach(function (item) {
+    var lineTotal = getItemSubtotal(item);
+    grandTotal += lineTotal;
+
+    var imgHtml = item.imageUrl
+      ? '<img class="qs-cart-item-img" src="' + escapeHtml(item.imageUrl) + '" alt="' + escapeHtml(item.productName) + '"/>'
+      : '<div class="qs-cart-item-img" style="display:flex;align-items:center;justify-content:center;font-size:0.7rem;color:var(--admin-text-light)">Sin img</div>';
+
+    var discountHtml = '';
+    if (item.hasDiscount && item.discountPercentage > 0) {
+      discountHtml = '<span class="qs-cart-item-discount">' + escapeHtml(item.discountType) + ' -' + item.discountPercentage + '%</span>';
+    }
+
+    html += '<div class="qs-cart-item" data-product-id="' + item.productId + '">' +
+      imgHtml +
+      '<div class="qs-cart-item-info">' +
+        '<strong>' + escapeHtml(item.productName) + '</strong>' +
+        '<span>L ' + item.unitPrice.toFixed(2) + ' | Stock: ' + item.maxStock + '</span>' +
+        discountHtml +
+      '</div>' +
+      '<div class="qs-cart-item-qty">' +
+        '<button type="button" class="qs-qty-btn" data-action="dec" data-id="' + item.productId + '">−</button>' +
+        '<input type="number" class="qs-qty-input" value="' + item.quantity + '" min="1" max="' + item.maxStock + '" data-id="' + item.productId + '"/>' +
+        '<button type="button" class="qs-qty-btn" data-action="inc" data-id="' + item.productId + '">+</button>' +
+      '</div>' +
+      '<div class="qs-cart-item-subtotal">L ' + lineTotal.toFixed(2) + '</div>' +
+      '<button type="button" class="qs-cart-item-remove" data-id="' + item.productId + '" title="Quitar">&times;</button>' +
+    '</div>';
+  });
+
+  cartEl.innerHTML = html;
+  document.getElementById('qs-grand-total-value').textContent = 'L ' + grandTotal.toFixed(2);
+  totalEl.style.display = 'flex';
+  submitBtn.disabled = false;
+}
+
+// Delegación de eventos en el carrito
+document.getElementById('qs-cart').addEventListener('click', function (e) {
+  var target = e.target;
+
+  // Botones +/-
+  if (target.classList.contains('qs-qty-btn')) {
+    var id = target.getAttribute('data-id');
+    var action = target.getAttribute('data-action');
+    var item = quickSaleCart.find(function (i) { return i.productId === id; });
+    if (!item) return;
+    if (action === 'inc') {
+      updateQuickSaleQty(id, item.quantity + 1);
+    } else {
+      updateQuickSaleQty(id, item.quantity - 1);
+    }
+    return;
+  }
+
+  // Botón quitar
+  if (target.classList.contains('qs-cart-item-remove')) {
+    removeFromQuickSale(target.getAttribute('data-id'));
+    return;
+  }
+});
+
+document.getElementById('qs-cart').addEventListener('change', function (e) {
+  if (e.target.classList.contains('qs-qty-input')) {
+    var id = e.target.getAttribute('data-id');
+    updateQuickSaleQty(id, parseInt(e.target.value) || 1);
+  }
+});
+
+function submitQuickSale() {
+  hideQuickSaleError();
+
+  if (quickSaleCart.length === 0) {
+    showQuickSaleError('Agrega al menos un producto.');
+    return;
+  }
+
+  var saleDate = qsDatePicker ? qsDatePicker.getValue() : '';
+  if (!saleDate) {
+    showQuickSaleError('Selecciona la fecha de venta.');
+    return;
+  }
+
+  var notes = document.getElementById('qs-notes').value.trim();
+
+  // Calcular total para la confirmación
+  var grandTotal = 0;
+  var summaryLines = [];
+  quickSaleCart.forEach(function (item) {
+    var lineTotal = getItemSubtotal(item);
+    grandTotal += lineTotal;
+    summaryLines.push(item.productName + ' x' + item.quantity + ' = L ' + lineTotal.toFixed(2));
+  });
+
+  var confirmMsg = summaryLines.join('\n') + '\n\nTotal: L ' + grandTotal.toFixed(2);
+
+  showConfirm(
+    '¿Registrar venta?',
+    confirmMsg,
+    async function () {
+      var submitBtn = document.getElementById('qs-submit');
+      submitBtn.disabled = true;
+      submitBtn.textContent = 'Registrando...';
+
+      try {
+        var promises = quickSaleCart.map(function (item) {
+          var subtotal = item.unitPrice * item.quantity;
+          var total = getItemSubtotal(item);
+
+          var saleData = {
+            productId: item.productId,
+            productName: item.productName,
+            quantity: item.quantity,
+            unitPrice: item.unitPrice,
+            hasDiscount: item.hasDiscount,
+            discountType: item.hasDiscount ? item.discountType : null,
+            discountPercentage: item.discountPercentage,
+            subtotal: parseFloat(subtotal.toFixed(2)),
+            total: parseFloat(total.toFixed(2)),
+            saleDate: saleDate,
+          };
+
+          return authFetch(API_URL + '/sales', {
+            method: 'POST',
+            body: JSON.stringify(saleData),
+          }).then(function (response) {
+            if (!response || !response.ok) {
+              return { success: false, product: item.productName };
+            }
+            return { success: true, product: item.productName };
+          });
+        });
+
+        var results = await Promise.all(promises);
+        var failed = results.filter(function (r) { return !r.success; });
+
+        if (failed.length === 0) {
+          var msg = quickSaleCart.length === 1
+            ? 'Venta registrada correctamente.'
+            : quickSaleCart.length + ' ventas registradas correctamente.';
+          showToast(msg);
+          closeQuickSaleModal();
+          await loadProducts();
+          await loadSales();
+        } else {
+          var failedNames = failed.map(function (f) { return f.product; }).join(', ');
+          showQuickSaleError('Error al registrar: ' + failedNames + '. Las demás se registraron correctamente.');
+          await loadProducts();
+          await loadSales();
+        }
+      } catch (error) {
+        showQuickSaleError('Ocurrió un error inesperado.');
+      } finally {
+        submitBtn.disabled = false;
+        submitBtn.textContent = 'Registrar venta';
+      }
+    }
+  );
+}
+
+// Event listeners
+document.getElementById('fab-quick-sale').addEventListener('click', openQuickSaleModal);
+document.getElementById('qs-add-product').addEventListener('click', addProductToQuickSale);
+document.getElementById('qs-cancel').addEventListener('click', closeQuickSaleModal);
+document.getElementById('qs-submit').addEventListener('click', submitQuickSale);
+document.getElementById('quick-sale-modal').addEventListener('click', function (e) {
+  if (e.target === this) closeQuickSaleModal();
+});
+
+// ============================================================================
 // LOGOUT
 // ============================================================================
 document.getElementById('btn-logout').addEventListener('click', function () {
@@ -1997,6 +2623,21 @@ document.getElementById('btn-logout').addEventListener('click', function () {
     }
   );
 });
+
+// ============================================================================
+// DATE PICKERS — Inicialización
+// ============================================================================
+var dashboardStartPicker = createDatePicker('dashboard-start-picker', renderDashboardCharts);
+var dashboardEndPicker = createDatePicker('dashboard-end-picker', renderDashboardCharts);
+
+var salesDatePicker = createDatePicker('sales-date-picker', function () {
+  renderSalesTable();
+});
+
+var promoStartPicker = createDatePicker('promo-start-picker');
+var promoEndPicker = createDatePicker('promo-end-picker');
+var saleDatePicker = createDatePicker('sale-date-picker');
+var qsDatePicker = createDatePicker('qs-date-picker');
 
 // ============================================================================
 // INICIALIZACIÓN
