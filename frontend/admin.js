@@ -910,6 +910,10 @@ function openCreateModal() {
   document.getElementById('product-form').reset();
   document.getElementById('product-id').value = '';
   document.getElementById('current-images-section').style.display = 'none';
+  document.getElementById('btn-remove-image').style.display = 'none';
+  document.getElementById('product-image-count').style.display = 'none';
+  document.getElementById('product-image').setAttribute('multiple', '');
+  document.getElementById('product-image-hint').textContent = 'Podés elegir una sola imagen o varias juntas (mantené presionado Ctrl para seleccionar más de una). La primera será la imagen principal; el resto quedan como adicionales.';
   setCustomSelectValue('product-category-wrapper', '');
   hideModalError();
   clearFieldErrors();
@@ -938,6 +942,10 @@ function openEditModal(id) {
   document.getElementById('product-dimensions').value = product.dimensions || '';
   document.getElementById('product-stock').value = product.stock != null ? product.stock : '';
   document.getElementById('product-image').value = '';
+  document.getElementById('product-image').removeAttribute('multiple');
+  document.getElementById('product-image-hint').textContent = 'Si subís una imagen nueva, reemplaza a la imagen principal actual.';
+  document.getElementById('btn-remove-image').style.display = 'none';
+  document.getElementById('product-image-count').style.display = 'none';
 
   // Mostrar imágenes actuales
   renderCurrentImages(product);
@@ -1043,6 +1051,30 @@ requiredFields.forEach(function (field) {
     clearFieldError(field.id);
     validateModalFields();
   });
+});
+
+// Botón para quitar las imágenes seleccionadas y poder elegir otras
+const productImageInput = document.getElementById('product-image');
+const btnRemoveImage = document.getElementById('btn-remove-image');
+const productImageCount = document.getElementById('product-image-count');
+productImageInput.addEventListener('change', function () {
+  const count = productImageInput.files.length;
+  btnRemoveImage.style.display = count ? 'inline-block' : 'none';
+  if (count > 1) {
+    productImageCount.style.display = 'block';
+    productImageCount.textContent = count + ' imágenes seleccionadas (1 principal + ' + (count - 1) + ' adicionales)';
+  } else {
+    productImageCount.style.display = 'none';
+    productImageCount.textContent = '';
+  }
+});
+btnRemoveImage.addEventListener('click', function () {
+  productImageInput.value = '';
+  btnRemoveImage.style.display = 'none';
+  productImageCount.style.display = 'none';
+  productImageCount.textContent = '';
+  clearFieldError('product-image');
+  validateModalFields();
 });
 
 // Botones
@@ -1167,7 +1199,9 @@ document.getElementById('product-form').addEventListener('submit', async functio
   const material = document.getElementById('product-material').value.trim();
   const dimensions = document.getElementById('product-dimensions').value.trim();
   const stock = document.getElementById('product-stock').value;
-  const imageFile = document.getElementById('product-image').files[0];
+  const selectedImages = Array.from(document.getElementById('product-image').files);
+  const imageFile = selectedImages[0];
+  const extraImageFiles = selectedImages.slice(1);
 
   // Validación campo por campo
   clearFieldErrors();
@@ -1179,6 +1213,7 @@ document.getElementById('product-form').addEventListener('submit', async functio
   if (!description) { showFieldError('product-description', 'La descripción es obligatoria.'); hasErrors = true; }
   if (!isEdit && stock === '') { showFieldError('product-stock', 'El stock es obligatorio.'); hasErrors = true; }
   if (!isEdit && !imageFile) { showFieldError('product-image', 'Debes subir al menos una imagen.'); hasErrors = true; }
+  if (!isEdit && extraImageFiles.length > 4) { showFieldError('product-image', 'Podés subir como máximo 4 imágenes adicionales.'); hasErrors = true; }
 
   if (hasErrors) {
     showModalError('Completa todos los campos obligatorios marcados en rojo.');
@@ -1197,6 +1232,7 @@ document.getElementById('product-form').addEventListener('submit', async functio
   if (dimensions) formData.append('dimensions', dimensions);
   if (stock !== '') formData.append('stock', stock);
   if (imageFile) formData.append('image', imageFile);
+  if (!isEdit) extraImageFiles.forEach(function (file) { formData.append('additionalImages', file); });
 
   try {
     const url = isEdit ? `${API_URL}/products/${currentEditId}` : `${API_URL}/products`;
@@ -1601,13 +1637,15 @@ function renderDashboardSales() {
   var monthCount = monthSales.reduce(function (sum, s) { return sum + Number(s.quantity); }, 0);
   var monthAmount = monthSales.reduce(function (sum, s) { return sum + Number(s.total); }, 0);
   document.getElementById('stat-month-sales').textContent = monthCount;
+  document.getElementById('stat-month-sales-label').textContent = 'Ventas mes de ' + MONTH_NAMES[currentMonth].toLowerCase();
   document.getElementById('stat-month-sales-amount').textContent = formatLempiras(monthAmount) + ' este mes';
 
-  // Descuentos activos
+  // Descuentos activos: debe estar activo, ya haber iniciado y no haber vencido
   var nowDate = new Date();
   nowDate.setHours(0, 0, 0, 0);
   var activePromos = allPromotions.filter(function (p) {
     if (!p.isActive) return false;
+    if (p.startDate && new Date(p.startDate) > nowDate) return false;
     if (p.endDate && new Date(p.endDate) < nowDate) return false;
     return true;
   });
@@ -1641,10 +1679,26 @@ function renderDashboardSales() {
 function renderDashboardCharts() {
   var startVal = dashboardStartPicker ? dashboardStartPicker.getValue() : '';
   var endVal = dashboardEndPicker ? dashboardEndPicker.getValue() : '';
-  if (!startVal || !endVal) return;
+  var errorEl = document.getElementById('dashboard-filter-error');
+  if (!startVal || !endVal) {
+    if (errorEl) errorEl.style.display = 'none';
+    return;
+  }
 
   var startDate = new Date(startVal + 'T00:00:00');
   var endDate = new Date(endVal + 'T23:59:59');
+
+  if (startDate > endDate) {
+    if (errorEl) {
+      errorEl.textContent = 'La fecha "Desde" no puede ser mayor que la fecha "Hasta".';
+      errorEl.style.display = 'block';
+    }
+    // Rango inválido: no hay datos que mostrar
+    renderWeeklyChart([], startDate.getFullYear(), startDate.getMonth());
+    renderMonthlyChart(startDate.getFullYear(), startDate.getMonth(), startDate.getFullYear(), startDate.getMonth());
+    return;
+  }
+  if (errorEl) errorEl.style.display = 'none';
 
   // Filtrar ventas dentro del rango
   var filteredSales = allSales.filter(function (s) {
@@ -1652,11 +1706,15 @@ function renderDashboardCharts() {
     return d >= startDate && d <= endDate;
   });
 
-  // Para el gráfico semanal: usar el mes de la fecha inicio
-  renderWeeklyChart(filteredSales, startDate.getFullYear(), startDate.getMonth());
+  // Gráfico semanal: solo ventas del mes de la fecha "Desde", y dentro del rango elegido
+  var weekSales = filteredSales.filter(function (s) {
+    var d = new Date(s.saleDate);
+    return d.getFullYear() === startDate.getFullYear() && d.getMonth() === startDate.getMonth();
+  });
+  renderWeeklyChart(weekSales, startDate.getFullYear(), startDate.getMonth());
 
-  // Para el gráfico mensual: centrar en el mes de la fecha inicio
-  renderMonthlyChart(startDate.getFullYear(), startDate.getMonth());
+  // Gráfico mensual: todos los meses comprendidos entre "Desde" y "Hasta"
+  renderMonthlyChart(startDate.getFullYear(), startDate.getMonth(), endDate.getFullYear(), endDate.getMonth());
 }
 
 function renderWeeklyChart(salesInMonth, year, month) {
@@ -1713,27 +1771,37 @@ function renderWeeklyChart(salesInMonth, year, month) {
   });
 }
 
-function renderMonthlyChart(centerYear, centerMonth) {
-  // Mostrar 6 meses: 3 antes del mes seleccionado, el mes seleccionado, y 2 después
-  var months = [];
-  var totals = [];
+function renderMonthlyChart(startYear, startMonth, endYear, endMonth) {
+  // Mostrar todos los meses comprendidos entre el inicio y el fin del rango seleccionado
+  // (con un tope para no graficar rangos absurdamente largos)
   var monthNames = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
+  var MAX_MONTHS = 24;
 
-  for (var i = -3; i <= 2; i++) {
-    var d = new Date(centerYear, centerMonth + i, 1);
-    var m = d.getMonth();
-    var y = d.getFullYear();
-    months.push(monthNames[m] + ' ' + y);
+  var monthList = [];
+  var y = startYear, m = startMonth, guard = 0;
+  while ((y < endYear || (y === endYear && m <= endMonth)) && guard < 500) {
+    monthList.push({ year: y, month: m });
+    m++;
+    if (m > 11) { m = 0; y++; }
+    guard++;
+  }
+  if (monthList.length === 0) {
+    monthList.push({ year: startYear, month: startMonth });
+  }
+  if (monthList.length > MAX_MONTHS) {
+    monthList = monthList.slice(monthList.length - MAX_MONTHS);
+  }
 
-    var monthTotal = allSales.reduce(function (sum, s) {
+  var months = monthList.map(function (mm) { return monthNames[mm.month] + ' ' + mm.year; });
+  var totals = monthList.map(function (mm) {
+    return allSales.reduce(function (sum, s) {
       var sd = new Date(s.saleDate);
-      if (sd.getMonth() === m && sd.getFullYear() === y) {
+      if (sd.getMonth() === mm.month && sd.getFullYear() === mm.year) {
         return sum + Number(s.total);
       }
       return sum;
     }, 0);
-    totals.push(monthTotal);
-  }
+  });
 
   var ctx = document.getElementById('chart-sales-monthly').getContext('2d');
 
@@ -2317,12 +2385,17 @@ function openQuickSaleModal() {
   quickSaleCart = [];
 
   // Poblar selector de productos con stock disponible
-  var options = allProducts
-    .filter(function (p) { return !p.isDeleted && (p.stock || 0) > 0; })
-    .map(function (p) {
-      return { value: p.id, label: p.name + ' — L ' + Number(p.price).toFixed(2) + ' (Stock: ' + (p.stock || 0) + ')' };
+  var qsProductSelect = document.getElementById('qs-product-select');
+  var optionsHtml = '<option value="">Buscar producto...</option>';
+  allProducts
+    .filter(function (p) { return p.isActive && (p.stock || 0) > 0; })
+    .forEach(function (p) {
+      optionsHtml += '<option value="' + escapeHtml(p.id) + '">' +
+        escapeHtml(p.name) + ' — L ' + Number(p.price).toFixed(2) + ' (Stock: ' + (p.stock || 0) + ')' +
+        '</option>';
     });
-  populateDynamicSelect('qs-product-wrapper', options, 'Buscar producto...');
+  qsProductSelect.innerHTML = optionsHtml;
+  qsProductSelect.value = '';
 
   // Fecha por defecto: hoy
   if (qsDatePicker) {
@@ -2395,10 +2468,7 @@ function addProductToQuickSale() {
   renderQuickSaleCart();
 
   // Reset selector
-  var hiddenInput = document.getElementById('qs-product-select');
-  hiddenInput.value = '';
-  var trigger = document.getElementById('qs-product-trigger');
-  if (trigger) trigger.textContent = 'Buscar producto...';
+  document.getElementById('qs-product-select').value = '';
 }
 
 function removeFromQuickSale(productId) {
@@ -2599,6 +2669,7 @@ function submitQuickSale() {
 // Event listeners
 document.getElementById('fab-quick-sale').addEventListener('click', openQuickSaleModal);
 document.getElementById('qs-add-product').addEventListener('click', addProductToQuickSale);
+document.getElementById('qs-product-select').addEventListener('change', hideQuickSaleError);
 document.getElementById('qs-cancel').addEventListener('click', closeQuickSaleModal);
 document.getElementById('qs-submit').addEventListener('click', submitQuickSale);
 document.getElementById('quick-sale-modal').addEventListener('click', function (e) {
@@ -2629,6 +2700,15 @@ document.getElementById('btn-logout').addEventListener('click', function () {
 // ============================================================================
 var dashboardStartPicker = createDatePicker('dashboard-start-picker', renderDashboardCharts);
 var dashboardEndPicker = createDatePicker('dashboard-end-picker', renderDashboardCharts);
+
+document.getElementById('dashboard-filter-clear').addEventListener('click', function () {
+  var today = new Date();
+  var firstDay = today.getFullYear() + '-' + String(today.getMonth() + 1).padStart(2, '0') + '-01';
+  var todayStr = today.getFullYear() + '-' + String(today.getMonth() + 1).padStart(2, '0') + '-' + String(today.getDate()).padStart(2, '0');
+  if (dashboardStartPicker) dashboardStartPicker.setValue(firstDay);
+  if (dashboardEndPicker) dashboardEndPicker.setValue(todayStr);
+  renderDashboardCharts();
+});
 
 var salesDatePicker = createDatePicker('sales-date-picker', function () {
   renderSalesTable();

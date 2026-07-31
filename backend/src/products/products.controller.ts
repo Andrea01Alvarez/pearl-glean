@@ -13,11 +13,12 @@ import {
   UseInterceptors,
   UseGuards,
   UploadedFile,
+  UploadedFiles,
   ParseFilePipe,
   MaxFileSizeValidator,
   FileTypeValidator,
 } from '@nestjs/common';
-import { FileInterceptor } from '@nestjs/platform-express';
+import { FileInterceptor, FileFieldsInterceptor } from '@nestjs/platform-express';
 import { memoryStorage } from 'multer';
 
 import { ApiTags, ApiOperation, ApiConsumes } from '@nestjs/swagger';
@@ -74,19 +75,39 @@ export class ProductsController {
 
   @Post()
   @UseGuards(AuthGuard)
-  @ApiOperation({ summary: 'Crear un producto (con imagen opcional)' })
+  @ApiOperation({ summary: 'Crear un producto (con imagen principal y adicionales opcionales)' })
   @ApiConsumes('multipart/form-data')
-  @UseInterceptors(FileInterceptor('image', imageUploadOptions))
+  @UseInterceptors(
+    FileFieldsInterceptor(
+      [
+        { name: 'image', maxCount: 1 },
+        { name: 'additionalImages', maxCount: 4 },
+      ],
+      imageUploadOptions,
+    ),
+  )
   async create(
     @Body() createProductDto: CreateProductDto,
-    @UploadedFile() file?: Express.Multer.File,
+    @UploadedFiles()
+    files?: { image?: Express.Multer.File[]; additionalImages?: Express.Multer.File[] },
   ): Promise<Product> {
     try {
-      if (file) {
-        const uploaded = await this.cloudinaryService.uploadImage(file, createProductDto.category);
+      const mainFile = files?.image?.[0];
+      if (mainFile) {
+        const uploaded = await this.cloudinaryService.uploadImage(mainFile, createProductDto.category);
         createProductDto.imageUrl = uploaded.url;
         createProductDto.imagePublicId = uploaded.publicId;
       }
+
+      if (files?.additionalImages?.length) {
+        const uploadedExtras = await Promise.all(
+          files.additionalImages.map((extraFile) =>
+            this.cloudinaryService.uploadImage(extraFile, createProductDto.category),
+          ),
+        );
+        createProductDto.additionalImages = uploadedExtras.map((extra) => extra.url);
+      }
+
       this.logger.debug(`Creando nuevo producto: ${createProductDto.name}`);
       return await this.productsService.create(createProductDto);
     } catch (error) {

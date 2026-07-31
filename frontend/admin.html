@@ -142,7 +142,7 @@
                 <div class="stat-card-detail" id="stat-total-sales-amount">L 0.00 generado</div>
               </div>
               <div class="stat-card">
-                <div class="stat-card-label">Ventas este mes</div>
+                <div class="stat-card-label" id="stat-month-sales-label">Ventas este mes</div>
                 <div class="stat-card-value" id="stat-month-sales">-</div>
                 <div class="stat-card-detail" id="stat-month-sales-amount">L 0.00 este mes</div>
               </div>
@@ -159,7 +159,9 @@
               <div class="datepicker-wrapper" id="dashboard-start-picker" data-mode="date"></div>
               <label class="form-label" style="margin-bottom:0">Hasta:</label>
               <div class="datepicker-wrapper" id="dashboard-end-picker" data-mode="date"></div>
+              <button type="button" class="btn btn-outline btn-sm" id="dashboard-filter-clear">Limpiar fecha</button>
             </div>
+            <div id="dashboard-filter-error" style="display:none;color:var(--admin-danger);font-size:0.8rem;margin-top:0.5rem"></div>
 
             <!-- Gráficos -->
             <div class="dashboard-charts">
@@ -264,7 +266,7 @@
               <div class="sales-filter-bar">
                 <label class="form-label" style="margin-bottom:0">Filtrar por:</label>
                 <div class="datepicker-wrapper" id="sales-date-picker" data-mode="date"></div>
-                <button class="btn btn-outline btn-sm" id="sales-filter-clear">Todos</button>
+                <button class="btn btn-outline btn-sm" id="sales-filter-clear">Limpiar fecha</button>
               </div>
               <button class="btn-new-product" id="btn-new-sale">+ Nueva venta</button>
             </div>
@@ -365,7 +367,12 @@
 
           <div class="form-group">
             <label class="form-label" for="product-image">Imagen del producto</label>
-            <input class="form-input" type="file" id="product-image" accept="image/*" />
+            <div style="display:flex;align-items:center;gap:0.6rem">
+              <input class="form-input" type="file" id="product-image" accept="image/*" multiple style="flex:1" />
+              <button type="button" class="btn btn-outline btn-sm" id="btn-remove-image" style="display:none;white-space:nowrap">Quitar</button>
+            </div>
+            <span id="product-image-hint" style="display:block;font-size:0.75rem;color:var(--admin-text-light);margin-top:0.35rem">Podés elegir una sola imagen o varias juntas (mantené presionado Ctrl para seleccionar más de una). La primera será la imagen principal; el resto quedan como adicionales.</span>
+            <span id="product-image-count" style="display:none;font-size:0.8rem;color:var(--admin-accent);margin-top:0.25rem"></span>
           </div>
 
           <div class="modal-actions">
@@ -575,13 +582,9 @@
 
         <!-- Agregar producto -->
         <div class="qs-add-row">
-          <div class="custom-select qs-product-select" id="qs-product-wrapper">
-            <input type="hidden" id="qs-product-select" value="" />
-            <div class="custom-select-trigger" id="qs-product-trigger">Buscar producto...</div>
-            <div class="custom-select-options" id="qs-product-options">
-              <div class="custom-select-option selected" data-value="">Buscar producto...</div>
-            </div>
-          </div>
+          <select class="form-select qs-product-select" id="qs-product-select">
+            <option value="">Buscar producto...</option>
+          </select>
           <button type="button" class="btn btn-primary btn-sm" id="qs-add-product">+ Agregar</button>
         </div>
 
