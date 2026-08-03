@@ -37,6 +37,7 @@ const AppState = {
 const router = new Router();
 
 router.add('/', viewHome);
+router.add('/catalogo', viewHome);
 router.add('/productos', viewProductos);
 router.add('/ofertas', viewOfertas);
 router.add('/contacto', viewContacto);
@@ -45,9 +46,239 @@ router.add('/producto/:id', viewProductoDetalle);
 router.onNavigate = updateActiveNavLink;
 
 // ============================================================================
+// TEMA — Oscuro / Claro
+// ============================================================================
+(function initTheme() {
+  const saved = localStorage.getItem('pearl-theme');
+  if (saved === 'light') {
+    document.documentElement.setAttribute('data-theme', 'light');
+  }
+})();
+
+function toggleTheme() {
+  const html = document.documentElement;
+  const isLight = html.getAttribute('data-theme') === 'light';
+  if (isLight) {
+    html.removeAttribute('data-theme');
+    localStorage.setItem('pearl-theme', 'dark');
+  } else {
+    html.setAttribute('data-theme', 'light');
+    localStorage.setItem('pearl-theme', 'light');
+  }
+}
+
+// ============================================================================
+// CARRITO — localStorage guest cart
+// ============================================================================
+const Cart = {
+  items: [],
+
+  load() {
+    try {
+      this.items = JSON.parse(localStorage.getItem('pearl-cart') || '[]');
+    } catch (e) {
+      this.items = [];
+    }
+  },
+
+  save() {
+    localStorage.setItem('pearl-cart', JSON.stringify(this.items));
+  },
+
+  add(productId, quantity) {
+    quantity = quantity || 1;
+    const product = AppState.products.find((p) => p.id === productId);
+    if (!product) return;
+
+    const promo = getActivePromotion(product);
+    const finalPrice =
+      promo && promo.discountPercentage > 0
+        ? product.price * (1 - promo.discountPercentage / 100)
+        : product.price;
+
+    const existing = this.items.find((i) => i.id === productId);
+    if (existing) {
+      existing.quantity += quantity;
+    } else {
+      this.items.push({
+        id: product.id,
+        name: product.name,
+        price: product.price,
+        finalPrice: finalPrice,
+        imageUrl: product.imageUrl || '',
+        quantity: quantity,
+      });
+    }
+    this.save();
+    this.updateBadge();
+    showAddedToCartToast(product.name);
+  },
+
+  remove(id) {
+    this.items = this.items.filter((i) => i.id !== id);
+    this.save();
+    this.updateBadge();
+    renderCartPanel();
+  },
+
+  changeQty(id, delta) {
+    const item = this.items.find((i) => i.id === id);
+    if (!item) return;
+    item.quantity += delta;
+    if (item.quantity <= 0) {
+      this.remove(id);
+      return;
+    }
+    this.save();
+    this.updateBadge();
+    renderCartPanel();
+  },
+
+  clear() {
+    this.items = [];
+    this.save();
+    this.updateBadge();
+    renderCartPanel();
+  },
+
+  getTotal() {
+    return this.items.reduce((s, i) => s + i.finalPrice * i.quantity, 0);
+  },
+
+  getCount() {
+    return this.items.reduce((s, i) => s + i.quantity, 0);
+  },
+
+  updateBadge() {
+    const badge = document.getElementById('cart-badge');
+    if (!badge) return;
+    const count = this.getCount();
+    badge.textContent = count;
+    badge.style.display = count > 0 ? 'flex' : 'none';
+  },
+
+  whatsappLink() {
+    let msg = '¡Hola! Me gustaría hacer un pedido:\n\n';
+    this.items.forEach((item) => {
+      const subtotal = formatLempiras(item.finalPrice * item.quantity);
+      msg += '• ' + item.quantity + 'x ' + item.name;
+      if (item.finalPrice !== item.price) {
+        msg += ' (con descuento)';
+      }
+      msg += ' — ' + subtotal + '\n';
+    });
+    msg += '\n*Total: ' + formatLempiras(this.getTotal()) + '*';
+    return 'https://wa.me/' + CONFIG.WHATSAPP_NUMBER + '?text=' + encodeURIComponent(msg);
+  },
+};
+
+function showAddedToCartToast(name) {
+  const t = document.createElement('div');
+  t.className = 'cart-toast';
+  t.textContent = '"' + name + '" agregado al carrito';
+  document.body.appendChild(t);
+  requestAnimationFrame(() => t.classList.add('show'));
+  setTimeout(() => {
+    t.classList.remove('show');
+    setTimeout(() => t.remove(), 300);
+  }, 2500);
+}
+
+function renderCartPanel() {
+  const itemsEl = document.getElementById('cart-items');
+  const footerEl = document.getElementById('cart-footer');
+  const totalEl = document.getElementById('cart-total');
+  const waBtn = document.getElementById('cart-whatsapp');
+  if (!itemsEl) return;
+
+  if (Cart.items.length === 0) {
+    itemsEl.innerHTML = '<div class="cart-empty">Tu carrito está vacío.<br/>Agrega productos desde el catálogo.</div>';
+    if (footerEl) footerEl.style.display = 'none';
+    return;
+  }
+
+  itemsEl.innerHTML = Cart.items.map((item) => {
+    const imgTag = item.imageUrl
+      ? '<img src="' + escapeHtml(item.imageUrl) + '" alt="' + escapeHtml(item.name) + '" />'
+      : '<div class="cart-item-no-img"></div>';
+    const showOriginal = item.finalPrice !== item.price;
+    const priceHTML = showOriginal
+      ? '<span class="cart-item-original">' + formatLempiras(item.price) + '</span> ' +
+        '<span class="cart-item-price">' + formatLempiras(item.finalPrice) + '</span>'
+      : '<span class="cart-item-price">' + formatLempiras(item.finalPrice) + '</span>';
+
+    return '<div class="cart-item" data-id="' + escapeHtml(item.id) + '">' +
+      '<div class="cart-item-img">' + imgTag + '</div>' +
+      '<div class="cart-item-info">' +
+        '<div class="cart-item-name">' + escapeHtml(item.name) + '</div>' +
+        '<div class="cart-item-prices">' + priceHTML + '</div>' +
+        '<div class="cart-item-controls">' +
+          '<button class="cart-qty-btn" data-action="minus" data-id="' + escapeHtml(item.id) + '">−</button>' +
+          '<span class="cart-qty">' + item.quantity + '</span>' +
+          '<button class="cart-qty-btn" data-action="plus" data-id="' + escapeHtml(item.id) + '">+</button>' +
+          '<button class="cart-remove-btn" data-id="' + escapeHtml(item.id) + '" aria-label="Eliminar">×</button>' +
+        '</div>' +
+      '</div>' +
+    '</div>';
+  }).join('');
+
+  if (totalEl) totalEl.textContent = formatLempiras(Cart.getTotal());
+  if (waBtn) waBtn.href = Cart.whatsappLink();
+  if (footerEl) footerEl.style.display = 'block';
+}
+
+function openCart() {
+  renderCartPanel();
+  document.getElementById('cart-panel').classList.add('open');
+  document.getElementById('cart-overlay').classList.add('visible');
+  document.body.style.overflow = 'hidden';
+}
+
+function closeCart() {
+  document.getElementById('cart-panel').classList.remove('open');
+  document.getElementById('cart-overlay').classList.remove('visible');
+  document.body.style.overflow = '';
+}
+
+// ============================================================================
 // INICIALIZACIÓN
 // ============================================================================
 document.addEventListener('DOMContentLoaded', async () => {
+  document.getElementById('theme-toggle').addEventListener('click', toggleTheme);
+
+  // Carrito
+  Cart.load();
+  Cart.updateBadge();
+
+  document.getElementById('cart-btn').addEventListener('click', openCart);
+  document.getElementById('cart-close').addEventListener('click', closeCart);
+  document.getElementById('cart-overlay').addEventListener('click', closeCart);
+  document.getElementById('cart-clear').addEventListener('click', () => Cart.clear());
+
+  // Delegación de eventos del panel (qty + remove)
+  document.getElementById('cart-items').addEventListener('click', (e) => {
+    const qtyBtn = e.target.closest('.cart-qty-btn');
+    const removeBtn = e.target.closest('.cart-remove-btn');
+    if (qtyBtn) {
+      const id = qtyBtn.getAttribute('data-id');
+      const action = qtyBtn.getAttribute('data-action');
+      Cart.changeQty(id, action === 'plus' ? 1 : -1);
+    }
+    if (removeBtn) {
+      Cart.remove(removeBtn.getAttribute('data-id'));
+    }
+  });
+
+  // Delegación de eventos del catálogo: botón "Agregar al carrito"
+  document.addEventListener('click', (e) => {
+    const addBtn = e.target.closest('.btn-add-cart');
+    if (addBtn) {
+      e.preventDefault();
+      e.stopPropagation();
+      Cart.add(addBtn.getAttribute('data-id'));
+    }
+  });
+
   await fetchProducts();
   router.init();
 });
@@ -66,7 +297,7 @@ function viewHome() {
 
 function viewProductos() {
   const view = document.getElementById('app-view');
-  view.innerHTML = getCatalogHTML();
+  view.innerHTML = getCatalogHTML('Colección', true, true);
   AppState.currentFilter = 'todos';
   setupCatalogEvents();
   renderProducts();
@@ -107,6 +338,7 @@ async function viewProductoDetalle(params) {
 
   view.innerHTML = getProductDetailHTML(product);
   window.scrollTo(0, 0);
+  initCarousel();
 }
 
 // ============================================================================
@@ -145,7 +377,7 @@ function getCatalogHTML(title = 'Colección', showFilters = true, showFilterTag 
     : '';
 
   const filterTagHTML = showFilterTag
-    ? `<a href="/" data-link class="filter-tag">&larr; Volver al inicio</a>`
+    ? `<a href="/catalogo" data-link class="filter-tag">&larr; Volver al inicio</a>`
     : '';
 
   return `
@@ -202,6 +434,105 @@ function getContactoHTML() {
     </section>`;
 }
 
+function initCardCarousels() {
+  document.querySelectorAll('.card-carousel').forEach((carousel) => {
+    if (carousel._initialized) return;
+    carousel._initialized = true;
+
+    const slides = carousel.querySelectorAll('.card-slide');
+    const dots = carousel.querySelectorAll('.card-dot');
+    let current = 0;
+    let timer = null;
+
+    function goTo(index) {
+      slides[current].classList.remove('active');
+      dots[current].classList.remove('active');
+      current = (index + slides.length) % slides.length;
+      slides[current].classList.add('active');
+      dots[current].classList.add('active');
+    }
+
+    function startAuto() {
+      timer = setInterval(() => goTo(current + 1), 3000);
+    }
+
+    function stopAuto() {
+      clearInterval(timer);
+    }
+
+    carousel.querySelector('.card-carousel-prev').addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      stopAuto();
+      goTo(current - 1);
+      startAuto();
+    });
+
+    carousel.querySelector('.card-carousel-next').addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      stopAuto();
+      goTo(current + 1);
+      startAuto();
+    });
+
+    dots.forEach((dot) => {
+      dot.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        stopAuto();
+        goTo(Number(dot.getAttribute('data-index')));
+        startAuto();
+      });
+    });
+
+    // Swipe táctil
+    let touchStartX = 0;
+    carousel.addEventListener('touchstart', (e) => { touchStartX = e.touches[0].clientX; }, { passive: true });
+    carousel.addEventListener('touchend', (e) => {
+      const diff = touchStartX - e.changedTouches[0].clientX;
+      if (Math.abs(diff) > 40) {
+        stopAuto();
+        goTo(diff > 0 ? current + 1 : current - 1);
+        startAuto();
+      }
+    });
+
+    startAuto();
+  });
+}
+
+function initCarousel() {
+  const carousel = document.getElementById('product-carousel');
+  if (!carousel) return;
+
+  const slides = carousel.querySelectorAll('.carousel-slide');
+  const dots = carousel.querySelectorAll('.carousel-dot');
+  let current = 0;
+
+  function goTo(index) {
+    slides[current].classList.remove('active');
+    dots[current].classList.remove('active');
+    current = (index + slides.length) % slides.length;
+    slides[current].classList.add('active');
+    dots[current].classList.add('active');
+  }
+
+  carousel.querySelector('.carousel-prev').addEventListener('click', () => goTo(current - 1));
+  carousel.querySelector('.carousel-next').addEventListener('click', () => goTo(current + 1));
+  dots.forEach((dot) => {
+    dot.addEventListener('click', () => goTo(Number(dot.getAttribute('data-index'))));
+  });
+
+  // Swipe táctil
+  let touchStartX = 0;
+  carousel.addEventListener('touchstart', (e) => { touchStartX = e.touches[0].clientX; }, { passive: true });
+  carousel.addEventListener('touchend', (e) => {
+    const diff = touchStartX - e.changedTouches[0].clientX;
+    if (Math.abs(diff) > 40) goTo(diff > 0 ? current + 1 : current - 1);
+  });
+}
+
 function getProductDetailHTML(product) {
   const category = (product.category || 'Sin categoría').toUpperCase();
   const name = escapeHtml(product.name || 'Producto sin nombre');
@@ -210,9 +541,35 @@ function getProductDetailHTML(product) {
   );
   const price = formatLempiras(product.price);
 
-  const imageHTML = product.imageUrl
-    ? `<img src="${escapeHtml(resolveImageUrl(product.imageUrl))}" alt="${name}" />`
-    : '<span>FOTO DEL PRODUCTO</span>';
+  // Armar lista completa de imágenes: principal + adicionales
+  const allImages = [];
+  if (product.imageUrl) allImages.push(resolveImageUrl(product.imageUrl));
+  if (product.additionalImages && product.additionalImages.length > 0) {
+    product.additionalImages.forEach((img) => allImages.push(resolveImageUrl(img)));
+  }
+
+  let imageHTML;
+  if (allImages.length === 0) {
+    imageHTML = '<span>FOTO DEL PRODUCTO</span>';
+  } else if (allImages.length === 1) {
+    imageHTML = `<img src="${escapeHtml(allImages[0])}" alt="${name}" />`;
+  } else {
+    const slides = allImages.map((src, i) =>
+      `<div class="carousel-slide${i === 0 ? ' active' : ''}">
+        <img src="${escapeHtml(src)}" alt="${name} ${i + 1}" />
+      </div>`
+    ).join('');
+    const dots = allImages.map((_, i) =>
+      `<button class="carousel-dot${i === 0 ? ' active' : ''}" data-index="${i}" aria-label="Imagen ${i + 1}"></button>`
+    ).join('');
+    imageHTML = `
+      <div class="carousel" id="product-carousel">
+        <div class="carousel-track">${slides}</div>
+        <button class="carousel-btn carousel-prev" aria-label="Anterior">&#8249;</button>
+        <button class="carousel-btn carousel-next" aria-label="Siguiente">&#8250;</button>
+        <div class="carousel-dots">${dots}</div>
+      </div>`;
+  }
 
   const promo = getActivePromotion(product);
 
@@ -258,7 +615,7 @@ function getProductDetailHTML(product) {
   return `
     <section class="product-detail-view">
       <div class="detail-header">
-        <a href="/" data-link class="detail-back">&larr; VOLVER AL INICIO</a>
+        <a href="/catalogo" data-link class="detail-back">&larr; VOLVER AL CATÁLOGO</a>
       </div>
       <div class="detail-body">
         <div class="detail-image">${imageHTML}</div>
@@ -270,8 +627,8 @@ function getProductDetailHTML(product) {
           <p class="modal-description">${description}</p>
           ${detailsHTML}
           <div class="modal-buttons">
-            <a href="${generateWhatsAppLink(product)}" target="_blank" class="btn btn-primary">COMPRAR POR WHATSAPP</a>
-            <a href="/productos" data-link class="btn btn-secondary">VER MÁS PIEZAS</a>
+            <button class="btn btn-primary btn-add-cart" data-id="${escapeHtml(product.id)}">+ AGREGAR AL CARRITO</button>
+            <a href="${generateWhatsAppLink(product)}" target="_blank" class="btn btn-secondary">COMPRAR POR WHATSAPP</a>
           </div>
         </div>
       </div>
@@ -394,6 +751,7 @@ function renderProducts() {
 
   grid.innerHTML = filtered.map((p) => createProductCard(p)).join('');
   attachProductEventListeners();
+  initCardCarousels();
 }
 
 function getFilteredProducts() {
@@ -413,7 +771,7 @@ function getFilteredProducts() {
 function attachProductEventListeners() {
   document.querySelectorAll('.product-card').forEach((card) => {
     card.addEventListener('click', (e) => {
-      if (!e.target.closest('.product-footer a')) {
+      if (!e.target.closest('.product-footer a') && !e.target.closest('.btn-add-cart')) {
         const productId = card.dataset.productId;
         router.navigate(`/producto/${productId}`);
       }
@@ -445,9 +803,34 @@ function createProductCard(product) {
   const description = escapeHtml(product.description || '');
   const name = escapeHtml(product.name);
 
-  const imageHtml = product.imageUrl
-    ? `<img src="${escapeHtml(resolveImageUrl(product.imageUrl))}" alt="${name}" loading="lazy" />`
-    : `<span>FOTO<br/>${name}</span>`;
+  const cardImages = [];
+  if (product.imageUrl) cardImages.push(resolveImageUrl(product.imageUrl));
+  if (product.additionalImages && product.additionalImages.length > 0) {
+    product.additionalImages.forEach((img) => cardImages.push(resolveImageUrl(img)));
+  }
+
+  let imageHtml;
+  if (cardImages.length === 0) {
+    imageHtml = `<span>FOTO<br/>${name}</span>`;
+  } else if (cardImages.length === 1) {
+    imageHtml = `<img src="${escapeHtml(cardImages[0])}" alt="${name}" loading="lazy" />`;
+  } else {
+    const slides = cardImages.map((src, i) =>
+      `<div class="card-slide${i === 0 ? ' active' : ''}">
+        <img src="${escapeHtml(src)}" alt="${name} ${i + 1}" loading="lazy" />
+      </div>`
+    ).join('');
+    const dots = cardImages.map((_, i) =>
+      `<button class="card-dot${i === 0 ? ' active' : ''}" data-index="${i}" aria-label="Imagen ${i + 1}"></button>`
+    ).join('');
+    imageHtml = `
+      <div class="card-carousel">
+        <div class="card-carousel-track">${slides}</div>
+        <button class="card-carousel-btn card-carousel-prev" aria-label="Anterior">&#8249;</button>
+        <button class="card-carousel-btn card-carousel-next" aria-label="Siguiente">&#8250;</button>
+        <div class="card-carousel-dots">${dots}</div>
+      </div>`;
+  }
 
   const promo = getActivePromotion(product);
   let priceHtml = '';
@@ -481,7 +864,16 @@ function createProductCard(product) {
         ${promoHtml}
         <div class="product-footer">
           ${priceHtml}
-          <a href="/producto/${escapeHtml(product.id)}" data-link>VER DETALLE</a>
+          <div class="product-footer-actions">
+            <a href="/producto/${escapeHtml(product.id)}" data-link>VER DETALLE</a>
+            <button class="btn-add-cart" data-id="${escapeHtml(product.id)}" aria-label="Agregar al carrito" title="Agregar al carrito">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4z"/>
+                <line x1="3" y1="6" x2="21" y2="6"/>
+                <path d="M16 10a4 4 0 01-8 0"/>
+              </svg>
+            </button>
+          </div>
         </div>
       </div>
     </div>

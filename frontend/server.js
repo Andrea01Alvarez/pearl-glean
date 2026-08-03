@@ -33,9 +33,9 @@ const HTML_PAGES = ['admin-login', 'admin'];
 const server = http.createServer((req, res) => {
   const url = req.url.split('?')[0];
 
-  // Raíz → index.html
+  // Raíz → catalogo.html
   if (url === '/' || url === '') {
-    return serveFile(path.join(DIR, 'index.html'), res);
+    return serveFile(path.join(DIR, 'catalogo.html'), res);
   }
 
   const clean = url.replace(/^\//, '');
@@ -52,8 +52,8 @@ const server = http.createServer((req, res) => {
     return serveFile(withHtml, res);
   }
 
-  // 3. SPA fallback: servir index.html para rutas del catálogo
-  return serveFile(path.join(DIR, 'index.html'), res);
+  // 3. SPA fallback: servir catalogo.html para rutas del catálogo
+  return serveFile(path.join(DIR, 'catalogo.html'), res);
 });
 
 function serveFile(filePath, res) {

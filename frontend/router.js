@@ -43,7 +43,7 @@ class Router {
 
   _toRoutePath(fullPath) {
     // /frontend/productos → /productos
-    // /frontend/index.html → /
+    // /frontend/catalogo.html → /catalogo
     let path = fullPath;
 
     // Quitar base path
@@ -51,8 +51,8 @@ class Router {
       path = path.substring(this.basePath.length);
     }
 
-    // Quitar index.html
-    path = path.replace(/index\.html$/, '');
+    // catalogo.html → catalogo (para que la ruta sea /catalogo)
+    path = path.replace(/catalogo\.html$/, 'catalogo');
 
     // Normalizar
     if (!path.startsWith('/')) path = '/' + path;
@@ -81,9 +81,9 @@ class Router {
       }
     }
 
-    // Ruta no encontrada — ir al inicio
-    window.history.replaceState({}, '', this.basePath);
-    const homeRoute = this.routes.find((r) => r.path === '/');
+    // Ruta no encontrada — ir al catálogo
+    window.history.replaceState({}, '', this._toFullPath('/catalogo'));
+    const homeRoute = this.routes.find((r) => r.path === '/catalogo');
     if (homeRoute) {
       homeRoute.handler({});
       if (this.onNavigate) this.onNavigate('/');
