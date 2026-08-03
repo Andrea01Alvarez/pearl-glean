@@ -21,6 +21,12 @@ let allProducts = [];
 let currentEditId = null;
 let currentSection = 'dashboard';
 
+// Paginado
+var PAGE_SIZE = 10;
+var productsPage = 1;
+var promosPage = 1;
+var salesPage = 1;
+
 // ============================================================================
 // SIDEBAR — Navegación entre secciones
 // ============================================================================
@@ -235,6 +241,70 @@ function categoryLabel(category) {
   const labels = { aretes: 'Aretes', collar: 'Collar', pulsera: 'Pulsera' };
   return labels[category] || category;
 }
+
+// ============================================================================
+// PAGINACIÓN — Utilidades
+// ============================================================================
+function getPageNumbers(current, total) {
+  if (total <= 7) {
+    var arr = [];
+    for (var i = 1; i <= total; i++) arr.push(i);
+    return arr;
+  }
+  var pages = [1];
+  if (current > 3) pages.push('...');
+  var start = Math.max(2, current - 1);
+  var end = Math.min(total - 1, current + 1);
+  for (var i = start; i <= end; i++) pages.push(i);
+  if (current < total - 2) pages.push('...');
+  pages.push(total);
+  return pages;
+}
+
+function renderPagination(containerId, currentPage, totalItems, onPageFn) {
+  var container = document.getElementById(containerId);
+  if (!container) return;
+
+  var totalPages = Math.ceil(totalItems / PAGE_SIZE);
+
+  if (totalPages <= 1) {
+    container.innerHTML = '';
+    return;
+  }
+
+  var start = (currentPage - 1) * PAGE_SIZE + 1;
+  var end = Math.min(currentPage * PAGE_SIZE, totalItems);
+
+  var html = '<span class="pagination-info">Mostrando ' + start + ' de ' + end + ' de ' + totalItems + ' Resultados ' +  '</span>';
+
+  html += '<div class="pagination-buttons">';
+
+  html += '<button class="pagination-btn" ' +
+    (currentPage === 1 ? 'disabled' : 'onclick="' + onPageFn + '(' + (currentPage - 1) + ')"') +
+    '>&#8249;</button>';
+
+  getPageNumbers(currentPage, totalPages).forEach(function (p) {
+    if (p === '...') {
+      html += '<span class="pagination-ellipsis">…</span>';
+    } else {
+      html += '<button class="pagination-btn' + (p === currentPage ? ' active' : '') + '" ' +
+        (p === currentPage ? 'disabled' : 'onclick="' + onPageFn + '(' + p + ')"') +
+        '>' + p + '</button>';
+    }
+  });
+
+  html += '<button class="pagination-btn" ' +
+    (currentPage === totalPages ? 'disabled' : 'onclick="' + onPageFn + '(' + (currentPage + 1) + ')"') +
+    '>&#8250;</button>';
+
+  html += '</div>';
+
+  container.innerHTML = html;
+}
+
+function setProductsPage(p) { productsPage = p; renderTable(); }
+function setPromosPage(p) { promosPage = p; renderPromosTable(); }
+function setSalesPage(p) { salesPage = p; renderSalesTable(); }
 
 // ============================================================================
 // DATE PICKER — Componente calendario personalizado
@@ -659,10 +729,16 @@ function renderTable() {
 
   if (filtered.length === 0) {
     tbody.innerHTML = '<tr><td colspan="7" class="table-empty">No se encontraron productos.</td></tr>';
+    renderPagination('products-pagination', 1, 0, 'setProductsPage');
     return;
   }
 
-  tbody.innerHTML = filtered.map(function (p) {
+  var totalPages = Math.ceil(filtered.length / PAGE_SIZE);
+  if (productsPage > totalPages) productsPage = totalPages;
+  var pageStart = (productsPage - 1) * PAGE_SIZE;
+  var pageItems = filtered.slice(pageStart, pageStart + PAGE_SIZE);
+
+  tbody.innerHTML = pageItems.map(function (p) {
     const imgSrc = p.imageUrl || '';
     const imgTag = imgSrc
       ? '<img class="product-thumbnail" src="' + escapeHtml(imgSrc) + '" alt="' + escapeHtml(p.name) + '" loading="lazy"/>'
@@ -689,6 +765,8 @@ function renderTable() {
       '</td>' +
     '</tr>';
   }).join('');
+
+  renderPagination('products-pagination', productsPage, filtered.length, 'setProductsPage');
 }
 
 // ============================================================================
@@ -758,8 +836,8 @@ document.addEventListener('click', function () {
 });
 
 // Inicializar los 3 custom selects
-initCustomSelect('filter-category-wrapper', renderTable);
-initCustomSelect('filter-status-wrapper', renderTable);
+initCustomSelect('filter-category-wrapper', function () { productsPage = 1; renderTable(); });
+initCustomSelect('filter-status-wrapper', function () { productsPage = 1; renderTable(); });
 initCustomSelect('product-category-wrapper', function () {
   clearFieldError('product-category');
   validateModalFields();
@@ -798,7 +876,7 @@ function setDynamicSelectValue(wrapperId, value) {
 }
 
 // Filtros — search input
-document.getElementById('filter-search').addEventListener('input', renderTable);
+document.getElementById('filter-search').addEventListener('input', function () { productsPage = 1; renderTable(); });
 
 // ============================================================================
 // DESACTIVAR / ACTIVAR PRODUCTO
@@ -1280,13 +1358,19 @@ function renderPromosTable() {
 
   if (allPromotions.length === 0) {
     tbody.innerHTML = '<tr><td colspan="8" class="table-empty">No hay promociones registradas.</td></tr>';
+    renderPagination('promos-pagination', 1, 0, 'setPromosPage');
     return;
   }
+
+  var totalPages = Math.ceil(allPromotions.length / PAGE_SIZE);
+  if (promosPage > totalPages) promosPage = totalPages;
+  var pageStart = (promosPage - 1) * PAGE_SIZE;
+  var pageItems = allPromotions.slice(pageStart, pageStart + PAGE_SIZE);
 
   var now = new Date();
   now.setHours(0, 0, 0, 0);
 
-  tbody.innerHTML = allPromotions.map(function (p) {
+  tbody.innerHTML = pageItems.map(function (p) {
     var typeLabel = p.type === 'descuento' ? 'Descuento' : 'Promoción';
     var discountText = p.discountPercentage ? Number(p.discountPercentage) + '%' : '-';
     var startText = p.startDate ? new Date(p.startDate).toLocaleDateString('es-HN') : '-';
@@ -1326,6 +1410,8 @@ function renderPromosTable() {
       '</td>' +
     '</tr>';
   }).join('');
+
+  renderPagination('promos-pagination', promosPage, allPromotions.length, 'setPromosPage');
 }
 
 // ============================================================================
@@ -1540,25 +1626,46 @@ function togglePromoStatus(id, isCurrentlyActive) {
       }
     );
   } else {
-    // Al reactivar, NO se aplican productos automáticamente
-    showConfirm(
-      '¿Activar promoción?',
-      '"' + escapeHtml(promoName) + '" se activará pero sin productos asignados. Deberás asignar productos manualmente desde Editar.',
-      async function () {
-        var response = await authFetch(API_URL + '/promotions/' + id, {
-          method: 'PUT',
-          body: JSON.stringify({ isActive: true, productIds: [] }),
-        });
-        if (!response) return;
-        if (response.ok) {
-          showToast('"' + promoName + '" fue activada. Asigna productos desde Editar.');
-          await loadAllPromotions();
-          await loadProducts();
-        } else {
-          showToast('No se pudo activar la promoción.', 'error');
-        }
+    // Verificar si la fecha de fin ya pasó
+    if (promo && promo.endDate) {
+      var today = new Date();
+      today.setHours(0, 0, 0, 0);
+      var endDate = new Date(promo.endDate);
+      endDate.setHours(0, 0, 0, 0);
+      if (endDate < today) {
+        showAlert(
+          'Fecha expirada',
+          'La promoción "' + escapeHtml(promoName) + '" tiene una fecha de fin que ya pasó (' +
+          endDate.toLocaleDateString('es-HN') + '). Actualizá la fecha desde Editar antes de activarla.'
+        );
+        return;
       }
-    );
+    }
+
+    // Verificar si tiene productos asignados
+    var existingProductIds = (promo && promo.products || []).map(function (p) { return p.id; });
+    var confirmMsg = existingProductIds.length > 0
+      ? '¿Activar "' + escapeHtml(promoName) + '"? Se aplicará a los ' + existingProductIds.length + ' producto(s) asignado(s).'
+      : '¿Activar "' + escapeHtml(promoName) + '"? No tiene productos asignados. Podés asignarlos desde Editar.';
+
+    showConfirm('¿Activar promoción?', confirmMsg, async function () {
+      // Solo enviar isActive — no tocar productIds para no borrar los productos asignados
+      var response = await authFetch(API_URL + '/promotions/' + id, {
+        method: 'PUT',
+        body: JSON.stringify({ isActive: true }),
+      });
+      if (!response) return;
+      if (response.ok) {
+        var msg = existingProductIds.length > 0
+          ? '"' + promoName + '" fue activada con ' + existingProductIds.length + ' producto(s).'
+          : '"' + promoName + '" fue activada. Asigna productos desde Editar.';
+        showToast(msg);
+        await loadAllPromotions();
+        await loadProducts();
+      } else {
+        showToast('No se pudo activar la promoción.', 'error');
+      }
+    });
   }
 }
 
@@ -1662,59 +1769,55 @@ function renderDashboardSales() {
     }
   }
 
-  // Establecer rango por defecto: primer día del mes actual hasta hoy
-  if (dashboardStartPicker && !dashboardStartPicker.getValue()) {
-    var firstDay = currentYear + '-' + String(currentMonth + 1).padStart(2, '0') + '-01';
-    dashboardStartPicker.setValue(firstDay);
-  }
-  if (dashboardEndPicker && !dashboardEndPicker.getValue()) {
-    var today = new Date();
-    var todayStr = today.getFullYear() + '-' + String(today.getMonth() + 1).padStart(2, '0') + '-' + String(today.getDate()).padStart(2, '0');
-    dashboardEndPicker.setValue(todayStr);
-  }
-
   renderDashboardCharts();
 }
 
 function renderDashboardCharts() {
+  var now = new Date();
+  var errorEl = document.getElementById('dashboard-filter-error');
   var startVal = dashboardStartPicker ? dashboardStartPicker.getValue() : '';
   var endVal = dashboardEndPicker ? dashboardEndPicker.getValue() : '';
-  var errorEl = document.getElementById('dashboard-filter-error');
-  if (!startVal || !endVal) {
-    if (errorEl) errorEl.style.display = 'none';
-    return;
-  }
 
-  var startDate = new Date(startVal + 'T00:00:00');
-  var endDate = new Date(endVal + 'T23:59:59');
+  // Si el usuario seleccionó un rango, usarlo; si no, usar rango automático
+  if (startVal && endVal) {
+    var startDate = new Date(startVal + 'T00:00:00');
+    var endDate = new Date(endVal + 'T23:59:59');
 
-  if (startDate > endDate) {
-    if (errorEl) {
-      errorEl.textContent = 'La fecha "Desde" no puede ser mayor que la fecha "Hasta".';
-      errorEl.style.display = 'block';
+    if (startDate > endDate) {
+      if (errorEl) {
+        errorEl.textContent = 'La fecha "Desde" no puede ser mayor que la fecha "Hasta".';
+        errorEl.style.display = 'block';
+      }
+      return;
     }
-    // Rango inválido: no hay datos que mostrar
-    renderWeeklyChart([], startDate.getFullYear(), startDate.getMonth());
-    renderMonthlyChart(startDate.getFullYear(), startDate.getMonth(), startDate.getFullYear(), startDate.getMonth());
+    if (errorEl) errorEl.style.display = 'none';
+
+    var weekSalesFiltered = allSales.filter(function (s) {
+      var d = new Date(s.saleDate);
+      return d.getFullYear() === startDate.getFullYear() && d.getMonth() === startDate.getMonth();
+    });
+    renderWeeklyChart(weekSalesFiltered, startDate.getFullYear(), startDate.getMonth());
+    renderMonthlyChart(startDate.getFullYear(), startDate.getMonth(), endDate.getFullYear(), endDate.getMonth());
     return;
   }
+
   if (errorEl) errorEl.style.display = 'none';
 
-  // Filtrar ventas dentro del rango
-  var filteredSales = allSales.filter(function (s) {
+  // Sin filtro: gráfica semanal del mes actual, mensual últimos 12 meses
+  var currentYear2 = now.getFullYear();
+  var currentMonth2 = now.getMonth();
+  var weekSales = allSales.filter(function (s) {
     var d = new Date(s.saleDate);
-    return d >= startDate && d <= endDate;
+    return d.getFullYear() === currentYear2 && d.getMonth() === currentMonth2;
   });
+  renderWeeklyChart(weekSales, currentYear2, currentMonth2);
 
-  // Gráfico semanal: solo ventas del mes de la fecha "Desde", y dentro del rango elegido
-  var weekSales = filteredSales.filter(function (s) {
-    var d = new Date(s.saleDate);
-    return d.getFullYear() === startDate.getFullYear() && d.getMonth() === startDate.getMonth();
-  });
-  renderWeeklyChart(weekSales, startDate.getFullYear(), startDate.getMonth());
-
-  // Gráfico mensual: todos los meses comprendidos entre "Desde" y "Hasta"
-  renderMonthlyChart(startDate.getFullYear(), startDate.getMonth(), endDate.getFullYear(), endDate.getMonth());
+  var endYear = now.getFullYear();
+  var endMonth = now.getMonth();
+  var startYear = endYear - 1;
+  var startMonth = endMonth + 1;
+  if (startMonth > 11) { startMonth = 0; startYear++; }
+  renderMonthlyChart(startYear, startMonth, endYear, endMonth);
 }
 
 function renderWeeklyChart(salesInMonth, year, month) {
@@ -1871,10 +1974,16 @@ function renderSalesTable() {
 
   if (filtered.length === 0) {
     tbody.innerHTML = '<tr><td colspan="9" class="table-empty">No hay ventas registradas.</td></tr>';
+    renderPagination('sales-pagination', 1, 0, 'setSalesPage');
     return;
   }
 
-  tbody.innerHTML = filtered.map(function (s) {
+  var totalPages = Math.ceil(filtered.length / PAGE_SIZE);
+  if (salesPage > totalPages) salesPage = totalPages;
+  var pageStart = (salesPage - 1) * PAGE_SIZE;
+  var pageItems = filtered.slice(pageStart, pageStart + PAGE_SIZE);
+
+  tbody.innerHTML = pageItems.map(function (s) {
     var product = s.product || {};
     var imgSrc = product.imageUrl || '';
     var imgTag = imgSrc
@@ -1910,6 +2019,8 @@ function renderSalesTable() {
       '</td>' +
     '</tr>';
   }).join('');
+
+  renderPagination('sales-pagination', salesPage, filtered.length, 'setSalesPage');
 }
 
 // ============================================================================
@@ -2231,6 +2342,7 @@ document.getElementById('sale-has-discount').addEventListener('change', function
 // Filtros de ventas — se conectan via date pickers en INICIALIZACIÓN
 document.getElementById('sales-filter-clear').addEventListener('click', function () {
   if (salesDatePicker) salesDatePicker.setValue('');
+  salesPage = 1;
   renderSalesTable();
 });
 
@@ -2702,15 +2814,13 @@ var dashboardStartPicker = createDatePicker('dashboard-start-picker', renderDash
 var dashboardEndPicker = createDatePicker('dashboard-end-picker', renderDashboardCharts);
 
 document.getElementById('dashboard-filter-clear').addEventListener('click', function () {
-  var today = new Date();
-  var firstDay = today.getFullYear() + '-' + String(today.getMonth() + 1).padStart(2, '0') + '-01';
-  var todayStr = today.getFullYear() + '-' + String(today.getMonth() + 1).padStart(2, '0') + '-' + String(today.getDate()).padStart(2, '0');
-  if (dashboardStartPicker) dashboardStartPicker.setValue(firstDay);
-  if (dashboardEndPicker) dashboardEndPicker.setValue(todayStr);
+  if (dashboardStartPicker) dashboardStartPicker.setValue('');
+  if (dashboardEndPicker) dashboardEndPicker.setValue('');
   renderDashboardCharts();
 });
 
 var salesDatePicker = createDatePicker('sales-date-picker', function () {
+  salesPage = 1;
   renderSalesTable();
 });
 

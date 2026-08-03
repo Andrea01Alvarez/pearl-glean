@@ -1873,38 +1873,29 @@ body {
    ============================================================================ */
 .fab-quick-sale {
   position: fixed;
-  bottom: 2rem;
-  right: 2rem;
+  bottom: 1.5rem;
+  right: 1.5rem;
   z-index: 900;
   display: flex;
   align-items: center;
-  gap: 0.5rem;
-  padding: 0.85rem 1.5rem;
+  justify-content: center;
+  width: 46px;
+  height: 46px;
+  padding: 0;
   background: var(--admin-accent);
   color: #fff;
   border: none;
-  border-radius: 50px;
-  font-family: var(--font-sans);
-  font-size: 0.85rem;
-  font-weight: 500;
+  border-radius: 50%;
   cursor: pointer;
-  box-shadow: 0 4px 15px rgba(192, 136, 106, 0.4);
+  box-shadow: 0 3px 10px rgba(192, 136, 106, 0.4);
   transition: background 0.2s, box-shadow 0.2s, transform 0.2s;
+  title: "Venta rápida";
 }
+.fab-quick-sale span { display: none; }
 .fab-quick-sale:hover {
   background: var(--admin-accent-hover);
-  box-shadow: 0 6px 20px rgba(192, 136, 106, 0.5);
+  box-shadow: 0 5px 14px rgba(192, 136, 106, 0.5);
   transform: translateY(-2px);
-}
-@media (max-width: 768px) {
-  .fab-quick-sale span { display: none; }
-  .fab-quick-sale {
-    padding: 1rem;
-    border-radius: 50%;
-    width: 56px;
-    height: 56px;
-    justify-content: center;
-  }
 }
 
 /* ============================================================================
@@ -2055,3 +2046,73 @@ body {
   .qs-cart-item-qty { margin-left: auto; }
   .qs-cart-item-subtotal { margin-left: auto; }
 }
+
+/* ============================================================================
+   PAGINACIÓN
+   ============================================================================ */
+
+.pagination-bar {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.9rem 0.25rem 0.5rem;
+}
+
+.pagination-info {
+  font-size: 0.8rem;
+  color: var(--admin-text-light);
+  text-align: center;
+}
+
+.pagination-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 2rem;
+  height: 2rem;
+  padding: 0 0.5rem;
+  border: 1px solid var(--admin-border);
+  background: var(--admin-card-bg);
+  color: var(--admin-text);
+  border-radius: 6px;
+  font-size: 0.8rem;
+  font-family: var(--font-sans);
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+}
+
+.pagination-btn:hover:not(:disabled) {
+  background: var(--admin-accent);
+  border-color: var(--admin-accent);
+  color: #fff;
+}
+
+.pagination-btn.active {
+  background: var(--admin-accent);
+  border-color: var(--admin-accent);
+  color: #fff;
+  font-weight: 600;
+  cursor: default;
+}
+
+.pagination-btn:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.pagination-buttons {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.pagination-ellipsis {
+  padding: 0 0.25rem;
+  color: var(--admin-text-light);
+  font-size: 0.85rem;
+  line-height: 2rem;
+  user-select: none;
+}
+
