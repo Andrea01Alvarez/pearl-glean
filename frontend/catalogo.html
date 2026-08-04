@@ -182,6 +182,23 @@
       </div>
     </div>
 
+    <!-- MODAL CANTIDAD AL AGREGAR AL CARRITO -->
+    <div class="qty-modal-overlay" id="qty-modal">
+      <div class="qty-modal-box">
+        <h3 class="qty-modal-title" id="qty-modal-product-name"></h3>
+        <p class="qty-modal-stock" id="qty-modal-stock"></p>
+        <div class="qty-modal-row">
+          <label class="qty-modal-label" for="qty-modal-input">Cantidad</label>
+          <input type="number" id="qty-modal-input" class="qty-modal-input" min="1" value="1" />
+        </div>
+        <p class="qty-modal-error" id="qty-modal-error" style="display:none"></p>
+        <div class="qty-modal-actions">
+          <button class="qty-modal-btn qty-modal-btn-cancel" id="qty-modal-cancel">Cancelar</button>
+          <button class="qty-modal-btn qty-modal-btn-confirm" id="qty-modal-confirm">Agregar al carrito</button>
+        </div>
+      </div>
+    </div>
+
     <script src="./router.js" defer></script>
     <script src="./app.js" defer></script>
   </body>

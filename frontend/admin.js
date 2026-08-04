@@ -2517,6 +2517,9 @@ function openQuickSaleModal() {
   }
 
   document.getElementById('qs-notes').value = '';
+  var qtyInput = document.getElementById('qs-add-quantity');
+  qtyInput.value = 1;
+  qtyInput.removeAttribute('max');
   hideQuickSaleError();
   renderQuickSaleCart();
   document.getElementById('quick-sale-modal').classList.add('visible');
@@ -2546,21 +2549,38 @@ function addProductToQuickSale() {
     return;
   }
 
-  // Si ya está en el carrito, incrementar cantidad
-  var existing = quickSaleCart.find(function (item) { return item.productId === productId; });
-  if (existing) {
-    if (existing.quantity < existing.maxStock) {
-      existing.quantity++;
-      hideQuickSaleError();
-      renderQuickSaleCart();
-    } else {
-      showQuickSaleError('Ya agregaste el máximo de stock disponible para ese producto.');
-    }
-    return;
-  }
+  var qtyInput = document.getElementById('qs-add-quantity');
+  var requestedQty = parseInt(qtyInput.value) || 1;
+  if (requestedQty < 1) requestedQty = 1;
 
   var product = allProducts.find(function (p) { return p.id === productId; });
   if (!product) return;
+
+  var maxStock = product.stock || 0;
+
+  // Si ya está en el carrito, sumar la cantidad solicitada
+  var existing = quickSaleCart.find(function (item) { return item.productId === productId; });
+  if (existing) {
+    var newQty = existing.quantity + requestedQty;
+    if (newQty > existing.maxStock) {
+      newQty = existing.maxStock;
+      showQuickSaleError('Solo hay ' + existing.maxStock + ' unidad(es) disponibles. Se ajustó al máximo.');
+    } else {
+      hideQuickSaleError();
+    }
+    existing.quantity = newQty;
+    renderQuickSaleCart();
+    qtyInput.value = 1;
+    return;
+  }
+
+  // Limitar al stock disponible
+  if (requestedQty > maxStock) {
+    requestedQty = maxStock;
+    showQuickSaleError('Solo hay ' + maxStock + ' unidad(es) disponibles. Se ajustó al máximo.');
+  } else {
+    hideQuickSaleError();
+  }
 
   var promo = getProductActivePromotion(product);
   var item = {
@@ -2568,19 +2588,20 @@ function addProductToQuickSale() {
     productName: product.name,
     imageUrl: product.imageUrl || '',
     unitPrice: Number(product.price),
-    quantity: 1,
-    maxStock: product.stock || 0,
+    quantity: requestedQty,
+    maxStock: maxStock,
     hasDiscount: !!promo,
     discountType: promo ? promo.name : '',
     discountPercentage: promo ? Number(promo.discountPercentage || 0) : 0
   };
 
   quickSaleCart.push(item);
-  hideQuickSaleError();
   renderQuickSaleCart();
 
-  // Reset selector
+  // Reset selector y cantidad
   document.getElementById('qs-product-select').value = '';
+  qtyInput.value = 1;
+  qtyInput.removeAttribute('max');
 }
 
 function removeFromQuickSale(productId) {
@@ -2781,7 +2802,23 @@ function submitQuickSale() {
 // Event listeners
 document.getElementById('fab-quick-sale').addEventListener('click', openQuickSaleModal);
 document.getElementById('qs-add-product').addEventListener('click', addProductToQuickSale);
-document.getElementById('qs-product-select').addEventListener('change', hideQuickSaleError);
+document.getElementById('qs-product-select').addEventListener('change', function () {
+  hideQuickSaleError();
+  var productId = this.value;
+  var qtyInput = document.getElementById('qs-add-quantity');
+  qtyInput.value = 1;
+  if (productId) {
+    var product = allProducts.find(function (p) { return p.id === productId; });
+    if (product) {
+      var stock = product.stock || 0;
+      var existing = quickSaleCart.find(function (item) { return item.productId === productId; });
+      var available = existing ? Math.max(0, stock - existing.quantity) : stock;
+      qtyInput.max = available;
+    }
+  } else {
+    qtyInput.removeAttribute('max');
+  }
+});
 document.getElementById('qs-cancel').addEventListener('click', closeQuickSaleModal);
 document.getElementById('qs-submit').addEventListener('click', submitQuickSale);
 document.getElementById('quick-sale-modal').addEventListener('click', function (e) {

@@ -372,6 +372,8 @@ a:hover {
   transition: border-color 0.2s ease;
   overflow: hidden;
   cursor: pointer;
+  display: flex;
+  flex-direction: column;
 }
 
 .product-card:hover {
@@ -490,6 +492,7 @@ a:hover {
   padding: 24px;
   display: flex;
   flex-direction: column;
+  flex: 1;
   gap: 10px;
 }
 
@@ -516,7 +519,7 @@ a:hover {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-top: 10px;
+  margin-top: auto;
   padding-top: 14px;
   border-top: 1px solid rgba(243, 237, 228, 0.1);
 }
@@ -1522,6 +1525,120 @@ a:hover {
 .cart-toast.show {
   opacity: 1;
   transform: translateX(-50%) translateY(0);
+}
+
+/* ============================================================
+   MODAL DE CANTIDAD — "Agregar al carrito"
+   ============================================================ */
+.qty-modal-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.55);
+  z-index: 1200;
+  align-items: center;
+  justify-content: center;
+}
+.qty-modal-overlay.visible {
+  display: flex;
+}
+.qty-modal-box {
+  background: var(--color-surface, #1c1a17);
+  border: 1px solid rgba(192, 136, 106, 0.25);
+  border-radius: 4px;
+  padding: 2rem 1.75rem 1.5rem;
+  width: min(340px, 90vw);
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+}
+.qty-modal-title {
+  font-family: 'Playfair Display', serif;
+  font-size: 1.05rem;
+  font-weight: 500;
+  color: var(--color-text);
+  margin: 0;
+  line-height: 1.35;
+}
+.qty-modal-stock {
+  font-size: 0.8rem;
+  color: var(--color-gold, #c0886a);
+  margin: 0;
+}
+.qty-modal-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+.qty-modal-label {
+  font-size: 0.85rem;
+  color: var(--color-text-muted, rgba(255,255,255,0.55));
+  white-space: nowrap;
+}
+.qty-modal-input {
+  width: 80px;
+  background: transparent;
+  border: 1px solid rgba(192, 136, 106, 0.3);
+  color: var(--color-text);
+  font-size: 1rem;
+  text-align: center;
+  padding: 0.45rem 0.5rem;
+  border-radius: 2px;
+  outline: none;
+  transition: border-color 0.2s;
+}
+.qty-modal-input:focus {
+  border-color: var(--color-gold, #c0886a);
+}
+.qty-modal-error {
+  font-size: 0.78rem;
+  color: #e07070;
+  margin: 0;
+}
+.qty-modal-actions {
+  display: flex;
+  gap: 0.75rem;
+  justify-content: flex-end;
+  margin-top: 0.25rem;
+}
+.qty-modal-btn {
+  font-family: 'Montserrat', sans-serif;
+  font-size: 0.78rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 0.55rem 1.1rem;
+  border: none;
+  border-radius: 2px;
+  cursor: pointer;
+  transition: background 0.2s, color 0.2s;
+}
+.qty-modal-btn-cancel {
+  background: transparent;
+  border: 1px solid rgba(192, 136, 106, 0.3);
+  color: var(--color-text-muted, rgba(255,255,255,0.55));
+}
+.qty-modal-btn-cancel:hover {
+  border-color: var(--color-gold, #c0886a);
+  color: var(--color-gold, #c0886a);
+}
+.qty-modal-btn-confirm {
+  background: var(--color-gold, #c0886a);
+  color: #fff;
+}
+.qty-modal-btn-confirm:hover:not(:disabled) {
+  background: #a8734f;
+}
+.qty-modal-btn-confirm:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+[data-theme="light"] .qty-modal-box {
+  background: #fff;
+  border-color: rgba(192, 136, 106, 0.3);
+}
+[data-theme="light"] .qty-modal-input {
+  background: #faf8f6;
+  color: #2d2d2d;
 }
 
 /* En detalle: botón agregar */

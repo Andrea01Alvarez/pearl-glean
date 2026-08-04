@@ -1913,6 +1913,12 @@ body {
 }
 .qs-add-row .qs-product-select { flex: 1; }
 .qs-add-row .btn { white-space: nowrap; padding: 0.6rem 1rem; width: auto; }
+.qs-add-qty-input {
+  width: 72px;
+  flex-shrink: 0;
+  text-align: center;
+  padding: 0.6rem 0.5rem;
+}
 
 .qs-cart {
   border: 1px solid var(--admin-border);
@@ -2041,6 +2047,7 @@ body {
 @media (max-width: 768px) {
   .qs-add-row { flex-direction: column; }
   .qs-add-row .btn { width: 100%; }
+  .qs-add-qty-input { width: 100%; }
   .qs-cart-item { flex-wrap: wrap; gap: 0.5rem; }
   .qs-cart-item-info { width: calc(100% - 60px); }
   .qs-cart-item-qty { margin-left: auto; }

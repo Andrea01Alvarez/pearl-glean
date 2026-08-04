@@ -90,6 +90,7 @@ const Cart = {
     const product = AppState.products.find((p) => p.id === productId);
     if (!product) return;
 
+    const maxStock = product.stock || 0;
     const promo = getActivePromotion(product);
     const finalPrice =
       promo && promo.discountPercentage > 0
@@ -98,7 +99,7 @@ const Cart = {
 
     const existing = this.items.find((i) => i.id === productId);
     if (existing) {
-      existing.quantity += quantity;
+      existing.quantity = Math.min(existing.quantity + quantity, maxStock);
     } else {
       this.items.push({
         id: product.id,
@@ -106,7 +107,8 @@ const Cart = {
         price: product.price,
         finalPrice: finalPrice,
         imageUrl: product.imageUrl || '',
-        quantity: quantity,
+        quantity: Math.min(quantity, maxStock),
+        maxStock: maxStock,
       });
     }
     this.save();
@@ -124,11 +126,13 @@ const Cart = {
   changeQty(id, delta) {
     const item = this.items.find((i) => i.id === id);
     if (!item) return;
-    item.quantity += delta;
-    if (item.quantity <= 0) {
+    const newQty = item.quantity + delta;
+    if (newQty <= 0) {
       this.remove(id);
       return;
     }
+    const maxStock = item.maxStock || Infinity;
+    item.quantity = Math.min(newQty, maxStock);
     this.save();
     this.updateBadge();
     renderCartPanel();
@@ -171,6 +175,96 @@ const Cart = {
     return 'https://wa.me/' + CONFIG.WHATSAPP_NUMBER + '?text=' + encodeURIComponent(msg);
   },
 };
+
+// ============================================================================
+// MODAL DE CANTIDAD — "Agregar al carrito"
+// ============================================================================
+function openQtyModal(productId) {
+  const product = AppState.products.find((p) => p.id === productId);
+  if (!product) return;
+
+  const maxStock = product.stock || 0;
+  const existing = Cart.items.find((i) => i.id === productId);
+  const inCart = existing ? existing.quantity : 0;
+  const available = Math.max(0, maxStock - inCart);
+
+  const modal = document.getElementById('qty-modal');
+  const nameEl = document.getElementById('qty-modal-product-name');
+  const input = document.getElementById('qty-modal-input');
+  const stockEl = document.getElementById('qty-modal-stock');
+  const errorEl = document.getElementById('qty-modal-error');
+  const confirmBtn = document.getElementById('qty-modal-confirm');
+
+  nameEl.textContent = product.name;
+
+  // Mostrar siempre el stock real del producto
+  let stockMsg = 'Stock disponible: ' + maxStock + ' unidad' + (maxStock !== 1 ? 'es' : '');
+  if (inCart > 0) {
+    stockMsg += ' · Ya tienes ' + inCart + ' en el carrito';
+  }
+  if (available === 0 && maxStock > 0) {
+    stockMsg = 'Ya tienes todas las unidades disponibles en el carrito (' + maxStock + ')';
+  } else if (maxStock === 0) {
+    stockMsg = 'Sin stock disponible';
+  }
+  stockEl.textContent = stockMsg;
+
+  input.min = 1;
+  input.max = available;
+  input.value = available > 0 ? 1 : 0;
+  input.disabled = available === 0;
+  confirmBtn.disabled = available === 0;
+  errorEl.textContent = '';
+  errorEl.style.display = 'none';
+
+  modal.dataset.productId = productId;
+  modal.classList.add('visible');
+  if (available > 0) setTimeout(() => input.focus(), 50);
+}
+
+function closeQtyModal() {
+  document.getElementById('qty-modal').classList.remove('visible');
+}
+
+function initQtyModal() {
+  const modal = document.getElementById('qty-modal');
+  const input = document.getElementById('qty-modal-input');
+  const errorEl = document.getElementById('qty-modal-error');
+
+  document.getElementById('qty-modal-confirm').addEventListener('click', () => {
+    const productId = modal.dataset.productId;
+    const qty = parseInt(input.value) || 0;
+    const max = parseInt(input.max) || 0;
+
+    if (qty < 1) {
+      errorEl.textContent = 'La cantidad debe ser al menos 1.';
+      errorEl.style.display = 'block';
+      return;
+    }
+    if (qty > max) {
+      const product = AppState.products.find((p) => p.id === productId);
+      const stock = product ? (product.stock || 0) : max;
+      const existing = Cart.items.find((i) => i.id === productId);
+      const inCart = existing ? existing.quantity : 0;
+      errorEl.textContent = inCart > 0
+        ? 'Solo puedes agregar ' + max + ' más (tienes ' + inCart + ' en el carrito, stock total: ' + stock + ').'
+        : 'Solo hay ' + stock + ' unidad' + (stock !== 1 ? 'es' : '') + ' disponibles.';
+      errorEl.style.display = 'block';
+      input.value = max;
+      return;
+    }
+    closeQtyModal();
+    Cart.add(productId, qty);
+  });
+
+  document.getElementById('qty-modal-cancel').addEventListener('click', closeQtyModal);
+  modal.addEventListener('click', (e) => { if (e.target === modal) closeQtyModal(); });
+
+  // Confirmar con Enter
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') document.getElementById('qty-modal-confirm').click();
+  });
+}
 
 function showAddedToCartToast(name) {
   const t = document.createElement('div');
@@ -249,6 +343,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   // Carrito
   Cart.load();
   Cart.updateBadge();
+  initQtyModal();
 
   document.getElementById('cart-btn').addEventListener('click', openCart);
   document.getElementById('cart-close').addEventListener('click', closeCart);
@@ -275,7 +370,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (addBtn) {
       e.preventDefault();
       e.stopPropagation();
-      Cart.add(addBtn.getAttribute('data-id'));
+      openQtyModal(addBtn.getAttribute('data-id'));
     }
   });
 
