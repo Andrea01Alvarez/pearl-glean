@@ -1060,9 +1060,10 @@ body {
   border: 1px solid var(--admin-border);
   border-radius: 10px;
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
-  z-index: 200;
+  z-index: 1500;
   padding: 0.75rem;
   min-width: 260px;
+  max-width: calc(100vw - 16px);
 }
 
 .datepicker-wrapper.open .datepicker-dropdown {
@@ -1525,19 +1526,75 @@ body {
   gap: 1rem;
 }
 
-.sales-filter-bar {
+.sales-filters-panel {
+  margin-bottom: 1.25rem;
+}
+
+.sales-filters-row {
   display: flex;
-  align-items: center;
-  gap: 0.75rem;
+  align-items: flex-end;
+  gap: 1rem;
+}
+
+.sales-filters-dates {
+  margin-top: 0.75rem;
+}
+
+.sales-filter-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  flex: 1;
+}
+
+.sales-filter-group--action {
+  flex: 0 0 auto;
+  flex-direction: row;
+  align-items: flex-end;
+  gap: 0.5rem;
+}
+
+.sales-filter-group--action .btn,
+.sales-filter-group--action .btn-new-product {
+  padding: 0 1.1rem;
+  font-size: 0.85rem;
+  height: 38px;
+  box-sizing: border-box;
+  white-space: nowrap;
+}
+
+.sales-filters-row .form-input,
+.sales-filters-row .form-select {
+  padding: 0 0.85rem;
+  height: 38px;
+  font-size: 0.875rem;
+  box-sizing: border-box;
+}
+
+.sales-filter-label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--admin-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
 }
 
 @media (max-width: 768px) {
-  .section-header-bar {
+  .sales-filters-row {
     flex-direction: column;
-    align-items: stretch;
+    gap: 0.75rem;
   }
-  .sales-filter-bar {
-    flex-wrap: wrap;
+  .sales-filter-group {
+    width: 100%;
+  }
+  .sales-filter-group--action {
+    width: 100%;
+    flex-direction: column;
+  }
+  .sales-filter-group--action .btn,
+  .sales-filter-group--action .btn-new-product {
+    width: 100%;
+    text-align: center;
   }
 }
 
@@ -1716,6 +1773,11 @@ body {
   background: var(--admin-danger);
 }
 
+.toast.warning {
+  background: var(--admin-warning);
+  color: #fff;
+}
+
 .toast.fadeout {
   animation: toastOut 0.3s ease forwards;
 }
@@ -1815,7 +1877,11 @@ body {
 
   .products-table th:nth-child(1),
   .products-table td:nth-child(1) {
-    display: none;
+    padding: 0.4rem 0.3rem;
+  }
+  .product-thumbnail {
+    width: 36px;
+    height: 36px;
   }
 
   .table-actions {
@@ -2052,6 +2118,13 @@ body {
   .qs-cart-item-info { width: calc(100% - 60px); }
   .qs-cart-item-qty { margin-left: auto; }
   .qs-cart-item-subtotal { margin-left: auto; }
+
+  /* FAB a la izquierda para no tapar los botones de la tabla */
+  .fab-quick-sale {
+    right: auto;
+    left: 1rem;
+    bottom: 1.5rem;
+  }
 }
 
 /* ============================================================================

@@ -3,15 +3,13 @@
 // ============================================================================
 // CONFIGURACIÓN
 // ============================================================================
-const isLocal =
-  window.location.hostname === 'localhost' ||
-  window.location.hostname === '127.0.0.1' ;
- 
-
-const BACKEND = isLocal
-  ? 'http://localhost:3300'
-  : 'https://pearl-glean.onrender.com';
-
+const _host = window.location.hostname;
+const BACKEND =
+  (typeof TUNNEL_BACKEND_URL !== 'undefined' && TUNNEL_BACKEND_URL)
+    ? TUNNEL_BACKEND_URL
+    : _host === 'pearl-glean.onrender.com'
+      ? 'https://pearl-glean.onrender.com'
+      : `http://${_host}:3300`;
 
 const API_URL = `${BACKEND}/api`;
 

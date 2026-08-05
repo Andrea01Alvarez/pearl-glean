@@ -264,13 +264,36 @@
 
           <!-- ============ SECCIÓN: VENTAS ============ -->
           <section class="admin-section" id="section-ventas">
-            <div class="section-header-bar">
-              <div class="sales-filter-bar">
-                <label class="form-label" style="margin-bottom:0">Filtrar por:</label>
-                <div class="datepicker-wrapper" id="sales-date-picker" data-mode="date"></div>
-                <button class="btn btn-outline btn-sm" id="sales-filter-clear">Limpiar fecha</button>
+            <!-- PANEL DE FILTROS -->
+            <div class="sales-filters-panel">
+              <div class="sales-filters-row">
+                <div class="sales-filter-group">
+                  <label class="sales-filter-label">Producto</label>
+                  <input type="text" id="sales-search-name" class="form-input" placeholder="Buscar por nombre..." autocomplete="off" />
+                </div>
+                <div class="sales-filter-group">
+                  <label class="sales-filter-label">Descuento</label>
+                  <select id="sales-filter-discount" class="form-select">
+                    <option value="">Todos</option>
+                    <option value="yes">Con descuento</option>
+                    <option value="no">Sin descuento</option>
+                  </select>
+                </div>
+                <div class="sales-filter-group sales-filter-group--action">
+                  <button class="btn btn-outline btn-sm" id="sales-filter-clear">Limpiar filtros</button>
+                  <button class="btn-new-product" id="btn-new-sale">+ Nueva venta</button>
+                </div>
               </div>
-              <button class="btn-new-product" id="btn-new-sale">+ Nueva venta</button>
+              <div class="sales-filters-row sales-filters-dates">
+                <div class="sales-filter-group">
+                  <label class="sales-filter-label">Fecha desde</label>
+                  <div class="datepicker-wrapper" id="sales-date-from" data-mode="date"></div>
+                </div>
+                <div class="sales-filter-group">
+                  <label class="sales-filter-label">Fecha hasta</label>
+                  <div class="datepicker-wrapper" id="sales-date-to" data-mode="date"></div>
+                </div>
+              </div>
             </div>
 
             <!-- TABLA DE VENTAS -->
@@ -374,7 +397,7 @@
               <input class="form-input" type="file" id="product-image" accept="image/*" multiple style="flex:1" />
               <button type="button" class="btn btn-outline btn-sm" id="btn-remove-image" style="display:none;white-space:nowrap">Quitar</button>
             </div>
-            <span id="product-image-hint" style="display:block;font-size:0.75rem;color:var(--admin-text-light);margin-top:0.35rem">Podés elegir una sola imagen o varias juntas (mantené presionado Ctrl para seleccionar más de una). La primera será la imagen principal; el resto quedan como adicionales.</span>
+            <span id="product-image-hint" style="display:block;font-size:0.75rem;color:var(--admin-text-light);margin-top:0.35rem">Podés elegir una o varias imágenes. En computadora: mantené Ctrl al seleccionar. En teléfono: tocá y seleccioná varias desde la galería. La primera será la imagen principal; el resto quedan como adicionales.</span>
             <span id="product-image-count" style="display:none;font-size:0.8rem;color:var(--admin-accent);margin-top:0.25rem"></span>
           </div>
 
@@ -621,6 +644,7 @@
       </div>
     </div>
 
+    <script src="./config.js"></script>
     <script src="./admin.js"></script>
   </body>
 </html>

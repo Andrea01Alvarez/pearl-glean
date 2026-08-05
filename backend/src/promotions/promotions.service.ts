@@ -66,6 +66,36 @@ export class PromotionsService {
     });
   }
 
+  /**
+   * Quita los productos dados de cualquier otra promoción activa.
+   * Se usa al crear/editar para garantizar que un producto solo tenga una promo activa.
+   */
+  private async liberarProductosDeOtrasPromos(
+    productIds: string[],
+    excludePromoId: string | null,
+  ): Promise<void> {
+    if (!productIds || productIds.length === 0) return;
+
+    const otrasPromos = await this.promotionRepository.find({
+      where: { isActive: true },
+      relations: { products: true },
+    });
+
+    const idSet = new Set(productIds);
+
+    for (const promo of otrasPromos) {
+      if (excludePromoId && promo.id === excludePromoId) continue;
+      const antes = promo.products.length;
+      promo.products = promo.products.filter((p) => !idSet.has(p.id));
+      if (promo.products.length !== antes) {
+        await this.promotionRepository.save(promo);
+        this.logger.log(
+          `Producto(s) trasladados a nueva promoción. Promo afectada: "${promo.name}"`,
+        );
+      }
+    }
+  }
+
   async create(dto: CreatePromotionDto): Promise<Promotion> {
     const { productIds, ...data } = dto;
 
@@ -75,6 +105,8 @@ export class PromotionsService {
     });
 
     if (productIds && productIds.length > 0) {
+      // Quitar estos productos de cualquier otra promo activa antes de asignarlos
+      await this.liberarProductosDeOtrasPromos(productIds, null);
       promotion.products = await this.productRepository.findBy({
         id: In(productIds),
       });
@@ -96,24 +128,30 @@ export class PromotionsService {
     Object.assign(promotion, data);
 
     if (productIds !== undefined) {
-      promotion.products =
-        productIds.length > 0
-          ? await this.productRepository.findBy({ id: In(productIds) })
-          : [];
+      if (productIds.length > 0) {
+        // Quitar estos productos de otras promos activas (no de la actual)
+        await this.liberarProductosDeOtrasPromos(productIds, id);
+        promotion.products = await this.productRepository.findBy({ id: In(productIds) });
+      } else {
+        promotion.products = [];
+      }
     }
 
     return this.promotionRepository.save(promotion);
   }
 
   async delete(id: string): Promise<boolean> {
+    // Cargar con relaciones para limpiar el junction table
     const promotion = await this.promotionRepository.findOne({
       where: { id },
+      relations: { products: true },
     });
     if (!promotion) {
       return false;
     }
 
     promotion.isActive = false;
+    promotion.products = []; // Libera los productos del junction table
     await this.promotionRepository.save(promotion);
     return true;
   }
@@ -126,6 +164,9 @@ export class PromotionsService {
     if (!promotion) {
       return null;
     }
+
+    // Quitar estos productos de otras promos antes de agregarlos aquí
+    await this.liberarProductosDeOtrasPromos(productIds, id);
 
     const newProducts = await this.productRepository.findBy({
       id: In(productIds),

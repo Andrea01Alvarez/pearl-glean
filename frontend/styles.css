@@ -1169,9 +1169,16 @@ a:hover {
 
 @media (max-width: 480px) {
   .navbar-right {
-    flex-direction: column;
+    flex-direction: row;
     align-items: center;
-    gap: 10px;
+    justify-content: center;
+    gap: 20px;
+    flex-wrap: nowrap;
+  }
+
+  .nav-link {
+    font-size: 11px;
+    letter-spacing: 0.04em;
   }
 
   .products-grid {
@@ -1406,17 +1413,20 @@ a:hover {
   background: none;
   border: 1px solid var(--color-border-light);
   color: var(--color-text);
-  width: 24px;
-  height: 24px;
+  width: 32px;
+  height: 32px;
   border-radius: 4px;
   cursor: pointer;
-  font-size: 14px;
+  font-size: 16px;
   display: flex;
   align-items: center;
   justify-content: center;
   transition: border-color 0.2s, color 0.2s;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
 }
-.cart-qty-btn:hover {
+.cart-qty-btn:hover,
+.cart-qty-btn:active {
   border-color: var(--color-gold);
   color: var(--color-gold);
 }
@@ -1527,6 +1537,47 @@ a:hover {
   transform: translateX(-50%) translateY(0);
 }
 
+/* FAB flotante del carrito */
+.cart-fab {
+  position: fixed;
+  bottom: 1.5rem;
+  right: 1.5rem;
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  background: var(--color-gold);
+  color: var(--color-bg);
+  border: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.35);
+  z-index: 150;
+  transition: transform 0.2s, box-shadow 0.2s;
+  touch-action: manipulation;
+}
+.cart-fab:hover {
+  transform: scale(1.08);
+  box-shadow: 0 6px 20px rgba(0,0,0,0.45);
+}
+.cart-fab-badge {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  background: var(--color-text);
+  color: var(--color-bg);
+  font-size: 10px;
+  font-weight: 700;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-sans);
+}
+
 /* ============================================================
    MODAL DE CANTIDAD — "Agregar al carrito"
    ============================================================ */
@@ -1568,6 +1619,7 @@ a:hover {
 .qty-modal-row {
   display: flex;
   align-items: center;
+  justify-content: space-between;
   gap: 0.75rem;
 }
 .qty-modal-label {
@@ -1575,20 +1627,50 @@ a:hover {
   color: var(--color-text-muted, rgba(255,255,255,0.55));
   white-space: nowrap;
 }
-.qty-modal-input {
-  width: 80px;
-  background: transparent;
+/* Stepper de cantidad */
+.qty-stepper {
+  display: flex;
+  align-items: center;
+  gap: 0;
   border: 1px solid rgba(192, 136, 106, 0.3);
-  color: var(--color-text);
-  font-size: 1rem;
-  text-align: center;
-  padding: 0.45rem 0.5rem;
   border-radius: 2px;
-  outline: none;
-  transition: border-color 0.2s;
+  overflow: hidden;
 }
-.qty-modal-input:focus {
-  border-color: var(--color-gold, #c0886a);
+.qty-stepper-btn {
+  background: transparent;
+  border: none;
+  color: var(--color-text);
+  font-size: 1.2rem;
+  width: 44px;
+  height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  transition: background 0.15s, color 0.15s;
+}
+.qty-stepper-btn:active {
+  background: rgba(192, 136, 106, 0.15);
+  color: var(--color-gold, #c0886a);
+}
+.qty-stepper-btn:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+.qty-stepper-val {
+  min-width: 48px;
+  text-align: center;
+  font-size: 1.1rem;
+  color: var(--color-text);
+  border-left: 1px solid rgba(192, 136, 106, 0.2);
+  border-right: 1px solid rgba(192, 136, 106, 0.2);
+  padding: 0 4px;
+  line-height: 44px;
+  height: 44px;
+  display: inline-block;
+  user-select: none;
 }
 .qty-modal-error {
   font-size: 0.78rem;

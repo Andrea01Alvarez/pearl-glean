@@ -3,13 +3,13 @@
 // ============================================================================
 // CONFIGURACIÓN
 // ============================================================================
-const isLocal =
-  window.location.hostname === 'localhost' ||
-  window.location.hostname === '127.0.0.1';
-
-const BACKEND = isLocal
-  ? 'http://localhost:3300'
-  : 'https://pearl-glean.onrender.com';
+const _host = window.location.hostname;
+const BACKEND =
+  (typeof TUNNEL_BACKEND_URL !== 'undefined' && TUNNEL_BACKEND_URL)
+    ? TUNNEL_BACKEND_URL
+    : _host === 'pearl-glean.onrender.com'
+      ? 'https://pearl-glean.onrender.com'
+      : `http://${_host}:3300`;
 
 const API_URL = `${BACKEND}/api`;
 const SESSION_TIMEOUT = 30 * 60 * 1000; // 30 minutos
@@ -524,8 +524,28 @@ function createDatePicker(wrapperId, onChange) {
     });
     // Posicionar dropdown con position:fixed relativo al trigger
     var rect = trigger.getBoundingClientRect();
-    dropdown.style.top = (rect.bottom + 4) + 'px';
-    dropdown.style.left = rect.left + 'px';
+    var dropH = 320; // altura aproximada del calendario
+    var dropW = Math.min(280, window.innerWidth - 16);
+
+    // Vertical: abrir hacia arriba si no hay espacio abajo
+    dropdown.style.bottom = 'auto';
+    dropdown.style.top = 'auto';
+    var spaceBelow = window.innerHeight - rect.bottom - 8;
+    if (spaceBelow < dropH && rect.top > dropH) {
+      dropdown.style.bottom = (window.innerHeight - rect.top + 4) + 'px';
+    } else {
+      dropdown.style.top = (rect.bottom + 4) + 'px';
+    }
+
+    // Horizontal: que no se salga del borde derecho
+    var left = rect.left;
+    if (left + dropW > window.innerWidth - 8) {
+      left = window.innerWidth - dropW - 8;
+    }
+    dropdown.style.left = Math.max(8, left) + 'px';
+    dropdown.style.minWidth = dropW + 'px';
+    dropdown.style.maxWidth = dropW + 'px';
+
     wrapper.classList.add('open');
     render();
   }
@@ -791,15 +811,22 @@ function initCustomSelect(wrapperId, onChange) {
       if (wrapper.classList.contains('open')) {
         wrapper.classList.remove('open');
       } else {
-        // Posicionar dropdown con fixed si está dentro de un modal
-        if (wrapper.closest('.modal-content')) {
-          var opts = wrapper.querySelector('.custom-select-options');
-          var rect = trigger.getBoundingClientRect();
-          opts.style.position = 'fixed';
+        // Siempre posicionar con fixed para evitar clipping
+        var opts = wrapper.querySelector('.custom-select-options');
+        var rect = trigger.getBoundingClientRect();
+        opts.style.position = 'fixed';
+        opts.style.left = rect.left + 'px';
+        opts.style.width = rect.width + 'px';
+        opts.style.zIndex = '2000';
+        opts.style.right = 'auto';
+        opts.style.top = 'auto';
+        opts.style.bottom = 'auto';
+        // Abrir hacia arriba si no hay espacio abajo
+        var spaceBelow = window.innerHeight - rect.bottom;
+        if (spaceBelow < 210) {
+          opts.style.bottom = (window.innerHeight - rect.top + 2) + 'px';
+        } else {
           opts.style.top = (rect.bottom + 2) + 'px';
-          opts.style.left = rect.left + 'px';
-          opts.style.width = rect.width + 'px';
-          opts.style.zIndex = '2000';
         }
         wrapper.classList.add('open');
       }
@@ -1417,6 +1444,19 @@ function renderPromosTable() {
 // ============================================================================
 // PROMOCIONES — Modal crear/editar
 // ============================================================================
+/** Devuelve la primera promo activa de un producto (excluye la que se está editando). */
+function getOtherActivePromo(product, excludePromoId) {
+  if (!product.promotions || product.promotions.length === 0) return null;
+  var now = new Date(); now.setHours(0, 0, 0, 0);
+  return product.promotions.find(function (pr) {
+    if (!pr.isActive) return false;
+    if (excludePromoId && pr.id === excludePromoId) return false;
+    if (pr.startDate && new Date(pr.startDate) > now) return false;
+    if (pr.endDate && new Date(pr.endDate) < now) return false;
+    return true;
+  }) || null;
+}
+
 function populatePromoProductsSelector(selectedIds) {
   var container = document.getElementById('promo-products-selector');
   var selectedSet = new Set(selectedIds || []);
@@ -1446,12 +1486,19 @@ function populatePromoProductsSelector(selectedIds) {
       : '<div style="width:36px;height:36px;background:#eee;border-radius:4px;display:flex;align-items:center;justify-content:center;font-size:9px;color:#aaa">Sin img</div>';
     var checked = selectedSet.has(p.id) ? 'checked' : '';
 
+    // Verificar si ya tiene otra promo activa (distinta a la que se edita)
+    var otherPromo = getOtherActivePromo(p, currentEditPromoId);
+    var promoNote = otherPromo
+      ? '<span style="font-size:0.72rem;color:#e07070;margin-top:2px">⚠ Ya tiene: ' + escapeHtml(otherPromo.name) + ' (se reemplazará)</span>'
+      : '';
+
     return '<label class="promo-product-item">' +
       '<input type="checkbox" value="' + p.id + '" ' + checked + '/>' +
       imgTag +
       '<div class="promo-product-item-info">' +
         '<strong>' + escapeHtml(p.name) + '</strong>' +
         '<span>' + formatLempiras(p.price) + ' — ' + categoryLabel(p.category) + '</span>' +
+        promoNote +
       '</div>' +
     '</label>';
   }).join('');
@@ -1794,7 +1841,7 @@ function renderDashboardCharts() {
 
     var weekSalesFiltered = allSales.filter(function (s) {
       var d = new Date(s.saleDate);
-      return d.getFullYear() === startDate.getFullYear() && d.getMonth() === startDate.getMonth();
+      return d >= startDate && d <= endDate;
     });
     renderWeeklyChart(weekSalesFiltered, startDate.getFullYear(), startDate.getMonth());
     renderMonthlyChart(startDate.getFullYear(), startDate.getMonth(), endDate.getFullYear(), endDate.getMonth());
@@ -1951,19 +1998,37 @@ function renderMonthlyChart(startYear, startMonth, endYear, endMonth) {
 // ============================================================================
 
 function getFilteredSales() {
-  if (salesDatePicker) {
-    var dateVal = salesDatePicker.getValue();
-    if (dateVal) {
-      var filterDate = new Date(dateVal + 'T00:00:00');
-      return allSales.filter(function (s) {
-        var d = new Date(s.saleDate);
-        d.setHours(0, 0, 0, 0);
-        return d.getTime() === filterDate.getTime();
-      });
-    }
-  }
+  var nameFilter = '';
+  var nameInput = document.getElementById('sales-search-name');
+  if (nameInput) nameFilter = nameInput.value.toLowerCase().trim();
 
-  return allSales;
+  var dateFrom = salesDateFromPicker ? salesDateFromPicker.getValue() : '';
+  var dateTo = salesDateToPicker ? salesDateToPicker.getValue() : '';
+
+  var discountFilter = '';
+  var discountSelect = document.getElementById('sales-filter-discount');
+  if (discountSelect) discountFilter = discountSelect.value;
+
+  return allSales.filter(function (s) {
+    if (nameFilter && s.productName.toLowerCase().indexOf(nameFilter) === -1) return false;
+
+    if (dateFrom) {
+      var from = new Date(dateFrom + 'T00:00:00');
+      var d = new Date(s.saleDate);
+      d.setHours(0, 0, 0, 0);
+      if (d < from) return false;
+    }
+    if (dateTo) {
+      var to = new Date(dateTo + 'T23:59:59');
+      var d2 = new Date(s.saleDate);
+      if (d2 > to) return false;
+    }
+
+    if (discountFilter === 'yes' && !s.hasDiscount) return false;
+    if (discountFilter === 'no' && s.hasDiscount) return false;
+
+    return true;
+  });
 }
 
 function renderSalesTable() {
@@ -2339,9 +2404,24 @@ document.getElementById('sale-has-discount').addEventListener('change', function
   updateSaleCalculation();
 });
 
-// Filtros de ventas — se conectan via date pickers en INICIALIZACIÓN
+// Filtros de ventas
 document.getElementById('sales-filter-clear').addEventListener('click', function () {
-  if (salesDatePicker) salesDatePicker.setValue('');
+  if (salesDateFromPicker) salesDateFromPicker.setValue('');
+  if (salesDateToPicker) salesDateToPicker.setValue('');
+  var nameInput = document.getElementById('sales-search-name');
+  if (nameInput) nameInput.value = '';
+  var discountSelect = document.getElementById('sales-filter-discount');
+  if (discountSelect) discountSelect.value = '';
+  salesPage = 1;
+  renderSalesTable();
+});
+
+document.getElementById('sales-search-name').addEventListener('input', function () {
+  salesPage = 1;
+  renderSalesTable();
+});
+
+document.getElementById('sales-filter-discount').addEventListener('change', function () {
   salesPage = 1;
   renderSalesTable();
 });
@@ -2446,9 +2526,18 @@ document.getElementById('sale-form').addEventListener('submit', function (e) {
 
         if (response.ok) {
           showToast(isEdit ? 'Venta actualizada correctamente.' : 'Venta registrada correctamente.');
+          // Guardar datos antes de recargar para detectar si el producto se agotó
+          var saleProductId = productId;
+          var saleProductName = productName;
+          var saleQty = quantity;
+          var stockAntes = prod ? (prod.stock || 0) : 0;
           closeSaleModal();
           await loadProducts();
           await loadSales();
+          // Notificar si el stock llegó a 0
+          if (!isEdit && stockAntes > 0 && stockAntes - saleQty <= 0) {
+            showToast('⚠ "' + saleProductName + '" se agotó y fue desactivado de la tienda.', 'warning');
+          }
         } else {
           var data = await response.json().catch(function () { return {}; });
           showSaleModalError(data.message || 'No se pudo guardar la venta.');
@@ -2775,10 +2864,13 @@ function submitQuickSale() {
         var results = await Promise.all(promises);
         var failed = results.filter(function (r) { return !r.success; });
 
+        // Guardar el carrito antes de cerrar para detectar agotados
+        var cartSnapshot = quickSaleCart.slice();
+
         if (failed.length === 0) {
-          var msg = quickSaleCart.length === 1
+          var msg = cartSnapshot.length === 1
             ? 'Venta registrada correctamente.'
-            : quickSaleCart.length + ' ventas registradas correctamente.';
+            : cartSnapshot.length + ' ventas registradas correctamente.';
           showToast(msg);
           closeQuickSaleModal();
           await loadProducts();
@@ -2789,6 +2881,15 @@ function submitQuickSale() {
           await loadProducts();
           await loadSales();
         }
+
+        // Notificar productos agotados tras la venta
+        cartSnapshot.forEach(function (item) {
+          if (item.maxStock > 0 && item.maxStock - item.quantity <= 0) {
+            setTimeout(function () {
+              showToast('⚠ "' + item.productName + '" se agotó y fue desactivado de la tienda.', 'warning');
+            }, 600);
+          }
+        });
       } catch (error) {
         showQuickSaleError('Ocurrió un error inesperado.');
       } finally {
@@ -2856,10 +2957,8 @@ document.getElementById('dashboard-filter-clear').addEventListener('click', func
   renderDashboardCharts();
 });
 
-var salesDatePicker = createDatePicker('sales-date-picker', function () {
-  salesPage = 1;
-  renderSalesTable();
-});
+var salesDateFromPicker = createDatePicker('sales-date-from', function () { salesPage = 1; renderSalesTable(); });
+var salesDateToPicker = createDatePicker('sales-date-to', function () { salesPage = 1; renderSalesTable(); });
 
 var promoStartPicker = createDatePicker('promo-start-picker');
 var promoEndPicker = createDatePicker('promo-end-picker');

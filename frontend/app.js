@@ -8,12 +8,13 @@
 // ============================================================================
 // CONFIGURACIÓN
 // ============================================================================
-const isLocal =
-  window.location.hostname === 'localhost' ||
-  window.location.hostname === '127.0.0.1';
-const BACKEND = isLocal
-  ? 'http://localhost:3300'
-  : 'https://pearl-glean.onrender.com';
+const _host = window.location.hostname;
+const BACKEND =
+  (typeof TUNNEL_BACKEND_URL !== 'undefined' && TUNNEL_BACKEND_URL)
+    ? TUNNEL_BACKEND_URL
+    : _host === 'pearl-glean.onrender.com'
+      ? 'https://pearl-glean.onrender.com'
+      : `http://${_host}:3300`;
 
 const CONFIG = {
   API_BASE_URL: `${BACKEND}/api`,
@@ -154,11 +155,17 @@ const Cart = {
   },
 
   updateBadge() {
-    const badge = document.getElementById('cart-badge');
-    if (!badge) return;
     const count = this.getCount();
-    badge.textContent = count;
-    badge.style.display = count > 0 ? 'flex' : 'none';
+    const badge = document.getElementById('cart-badge');
+    if (badge) {
+      badge.textContent = count;
+      badge.style.display = count > 0 ? 'flex' : 'none';
+    }
+    const fabBadge = document.getElementById('cart-fab-badge');
+    if (fabBadge) {
+      fabBadge.textContent = count;
+      fabBadge.style.display = count > 0 ? 'flex' : 'none';
+    }
   },
 
   whatsappLink() {
@@ -179,6 +186,18 @@ const Cart = {
 // ============================================================================
 // MODAL DE CANTIDAD — "Agregar al carrito"
 // ============================================================================
+// Cantidad actual del stepper
+let _qtyModalValue = 1;
+let _qtyModalMax = 1;
+
+function _setStepperVal(val) {
+  _qtyModalValue = Math.min(Math.max(1, val), _qtyModalMax);
+  document.getElementById('qty-stepper-val').textContent = _qtyModalValue;
+  document.getElementById('qty-stepper-minus').disabled = _qtyModalValue <= 1;
+  document.getElementById('qty-stepper-plus').disabled = _qtyModalValue >= _qtyModalMax;
+  document.getElementById('qty-modal-confirm').disabled = _qtyModalMax === 0;
+}
+
 function openQtyModal(productId) {
   const product = AppState.products.find((p) => p.id === productId);
   if (!product) return;
@@ -190,36 +209,25 @@ function openQtyModal(productId) {
 
   const modal = document.getElementById('qty-modal');
   const nameEl = document.getElementById('qty-modal-product-name');
-  const input = document.getElementById('qty-modal-input');
   const stockEl = document.getElementById('qty-modal-stock');
   const errorEl = document.getElementById('qty-modal-error');
-  const confirmBtn = document.getElementById('qty-modal-confirm');
 
   nameEl.textContent = product.name;
 
-  // Mostrar siempre el stock real del producto
   let stockMsg = 'Stock disponible: ' + maxStock + ' unidad' + (maxStock !== 1 ? 'es' : '');
-  if (inCart > 0) {
-    stockMsg += ' · Ya tienes ' + inCart + ' en el carrito';
-  }
-  if (available === 0 && maxStock > 0) {
-    stockMsg = 'Ya tienes todas las unidades disponibles en el carrito (' + maxStock + ')';
-  } else if (maxStock === 0) {
-    stockMsg = 'Sin stock disponible';
-  }
+  if (inCart > 0) stockMsg += ' · Ya tienes ' + inCart + ' en el carrito';
+  if (available === 0 && maxStock > 0) stockMsg = 'Ya tienes todas las unidades en el carrito (' + maxStock + ')';
+  else if (maxStock === 0) stockMsg = 'Sin stock disponible';
   stockEl.textContent = stockMsg;
 
-  input.min = 1;
-  input.max = available;
-  input.value = available > 0 ? 1 : 0;
-  input.disabled = available === 0;
-  confirmBtn.disabled = available === 0;
   errorEl.textContent = '';
   errorEl.style.display = 'none';
 
+  _qtyModalMax = available;
+  _setStepperVal(available > 0 ? 1 : 0);
+
   modal.dataset.productId = productId;
   modal.classList.add('visible');
-  if (available > 0) setTimeout(() => input.focus(), 50);
 }
 
 function closeQtyModal() {
@@ -228,42 +236,24 @@ function closeQtyModal() {
 
 function initQtyModal() {
   const modal = document.getElementById('qty-modal');
-  const input = document.getElementById('qty-modal-input');
   const errorEl = document.getElementById('qty-modal-error');
+
+  document.getElementById('qty-stepper-minus').addEventListener('click', () => _setStepperVal(_qtyModalValue - 1));
+  document.getElementById('qty-stepper-plus').addEventListener('click', () => _setStepperVal(_qtyModalValue + 1));
 
   document.getElementById('qty-modal-confirm').addEventListener('click', () => {
     const productId = modal.dataset.productId;
-    const qty = parseInt(input.value) || 0;
-    const max = parseInt(input.max) || 0;
-
-    if (qty < 1) {
-      errorEl.textContent = 'La cantidad debe ser al menos 1.';
+    if (_qtyModalValue < 1 || _qtyModalMax === 0) {
+      errorEl.textContent = 'No hay unidades disponibles.';
       errorEl.style.display = 'block';
-      return;
-    }
-    if (qty > max) {
-      const product = AppState.products.find((p) => p.id === productId);
-      const stock = product ? (product.stock || 0) : max;
-      const existing = Cart.items.find((i) => i.id === productId);
-      const inCart = existing ? existing.quantity : 0;
-      errorEl.textContent = inCart > 0
-        ? 'Solo puedes agregar ' + max + ' más (tienes ' + inCart + ' en el carrito, stock total: ' + stock + ').'
-        : 'Solo hay ' + stock + ' unidad' + (stock !== 1 ? 'es' : '') + ' disponibles.';
-      errorEl.style.display = 'block';
-      input.value = max;
       return;
     }
     closeQtyModal();
-    Cart.add(productId, qty);
+    Cart.add(productId, _qtyModalValue);
   });
 
   document.getElementById('qty-modal-cancel').addEventListener('click', closeQtyModal);
   modal.addEventListener('click', (e) => { if (e.target === modal) closeQtyModal(); });
-
-  // Confirmar con Enter
-  input.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter') document.getElementById('qty-modal-confirm').click();
-  });
 }
 
 function showAddedToCartToast(name) {
@@ -346,6 +336,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   initQtyModal();
 
   document.getElementById('cart-btn').addEventListener('click', openCart);
+  document.getElementById('cart-fab').addEventListener('click', openCart);
   document.getElementById('cart-close').addEventListener('click', closeCart);
   document.getElementById('cart-overlay').addEventListener('click', closeCart);
   document.getElementById('cart-clear').addEventListener('click', () => Cart.clear());
@@ -962,11 +953,7 @@ function createProductCard(product) {
           <div class="product-footer-actions">
             <a href="/producto/${escapeHtml(product.id)}" data-link>VER DETALLE</a>
             <button class="btn-add-cart" data-id="${escapeHtml(product.id)}" aria-label="Agregar al carrito" title="Agregar al carrito">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4z"/>
-                <line x1="3" y1="6" x2="21" y2="6"/>
-                <path d="M16 10a4 4 0 01-8 0"/>
-              </svg>
+              <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="21" r="1"/><circle cx="19" cy="21" r="1"/><path d="M2.05 2.05h2l2.66 12.42a2 2 0 0 0 2 1.58h9.78a2 2 0 0 0 1.95-1.57l1.65-7.43H5.12"/></svg>
             </button>
           </div>
         </div>

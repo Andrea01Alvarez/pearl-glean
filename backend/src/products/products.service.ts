@@ -59,9 +59,9 @@ export class ProductsService {
 
     Object.assign(product, dto);
 
-    // Si el stock llega a 0, desactivar automáticamente
-    if (product.stock !== null && product.stock !== undefined && Number(product.stock) <= 0) {
-      product.isActive = false;
+    // Sincronizar isActive con el stock automáticamente
+    if (product.stock !== null && product.stock !== undefined) {
+      product.isActive = Number(product.stock) > 0;
     }
 
     return this.productRepository.save(product);
