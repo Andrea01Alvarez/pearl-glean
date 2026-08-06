@@ -1,0 +1,8 @@
+{
+  "outputDirectory": "frontend",
+  "rewrites": [
+    { "source": "/admin-login", "destination": "/admin-login.html" },
+    { "source": "/admin",       "destination": "/admin.html" },
+    { "source": "/(.*)",        "destination": "/catalogo.html" }
+  ]
+}

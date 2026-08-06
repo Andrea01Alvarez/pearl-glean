@@ -19,6 +19,13 @@ export class ProductsService {
     });
   }
 
+  async findAllAdmin(): Promise<Product[]> {
+    return this.productRepository.find({
+      relations: { promotions: true },
+      order: { isActive: 'DESC', name: 'ASC' },
+    });
+  }
+
   async findOne(id: string): Promise<Product | null> {
     return this.productRepository.findOne({
       where: { id },
@@ -51,6 +58,12 @@ export class ProductsService {
     }
 
     Object.assign(product, dto);
+
+    // Sincronizar isActive con el stock automáticamente
+    if (product.stock !== null && product.stock !== undefined) {
+      product.isActive = Number(product.stock) > 0;
+    }
+
     return this.productRepository.save(product);
   }
 
@@ -64,5 +77,40 @@ export class ProductsService {
     product.isActive = false;
     await this.productRepository.save(product);
     return true;
+  }
+
+  async removeMainImage(id: string): Promise<Product | null> {
+    const product = await this.productRepository.findOne({ where: { id } });
+    if (!product) {
+      return null;
+    }
+    product.imageUrl = null as any;
+    product.imagePublicId = null as any;
+    return this.productRepository.save(product);
+  }
+
+  async reactivate(id: string): Promise<{ product?: Product; error?: string }> {
+    const product = await this.productRepository.findOne({ where: { id } });
+    if (!product) {
+      return { error: 'not_found' };
+    }
+    if (product.stock !== null && product.stock !== undefined && Number(product.stock) <= 0) {
+      return { error: 'no_stock' };
+    }
+    product.isActive = true;
+    const saved = await this.productRepository.save(product);
+    return { product: saved };
+  }
+
+  async removeAdditionalImage(id: string, imageIndex: number): Promise<Product | null> {
+    const product = await this.productRepository.findOne({ where: { id } });
+    if (!product) {
+      return null;
+    }
+    if (!product.additionalImages || imageIndex < 0 || imageIndex >= product.additionalImages.length) {
+      return null;
+    }
+    product.additionalImages.splice(imageIndex, 1);
+    return this.productRepository.save(product);
   }
 }

@@ -9,9 +9,11 @@ import {
   HttpException,
   HttpStatus,
   Logger,
+  UseGuards,
 } from '@nestjs/common';
 
 import { ApiTags, ApiOperation } from '@nestjs/swagger';
+import { AuthGuard } from '../auth/auth.guard';
 import { PromotionsService } from './promotions.service';
 import { CreatePromotionDto } from './dto/create-promotion.dto';
 import { UpdatePromotionDto } from './dto/update-promotion.dto';
@@ -30,6 +32,13 @@ export class PromotionsController {
     return this.promotionsService.findAll();
   }
 
+  @Get('admin/all')
+  @UseGuards(AuthGuard)
+  @ApiOperation({ summary: 'Obtener todas las promociones (admin)' })
+  async findAllAdmin(): Promise<Promotion[]> {
+    return this.promotionsService.findAllAdmin();
+  }
+
   @Get(':id')
   @ApiOperation({ summary: 'Obtener una promoción por ID con sus productos' })
   async findOne(@Param('id') id: string): Promise<Promotion> {
@@ -41,20 +50,23 @@ export class PromotionsController {
   }
 
   @Post()
+  @UseGuards(AuthGuard)
   @ApiOperation({ summary: 'Crear una promoción (con productos opcionales)' })
   async create(@Body() dto: CreatePromotionDto): Promise<Promotion> {
     try {
       this.logger.debug(`Creando promoción: ${dto.name}`);
       return await this.promotionsService.create(dto);
     } catch (error) {
-      const msg =
-        error instanceof Error ? error.message : 'Error al crear la promoción';
-      this.logger.error(`Error al crear promoción: ${msg}`);
-      throw new HttpException(msg, HttpStatus.BAD_REQUEST);
+      this.logger.error('Error al crear promoción', error);
+      throw new HttpException(
+        'No se pudo crear la promoción. Verifica los datos e intenta de nuevo.',
+        HttpStatus.BAD_REQUEST,
+      );
     }
   }
 
   @Put(':id')
+  @UseGuards(AuthGuard)
   @ApiOperation({ summary: 'Actualizar una promoción' })
   async update(
     @Param('id') id: string,
@@ -62,24 +74,32 @@ export class PromotionsController {
   ): Promise<Promotion> {
     const promotion = await this.promotionsService.update(id, dto);
     if (!promotion) {
-      throw new HttpException('Promoción no encontrada', HttpStatus.NOT_FOUND);
+      throw new HttpException(
+        'La promoción que intentas editar no existe.',
+        HttpStatus.NOT_FOUND,
+      );
     }
     this.logger.debug(`Promoción actualizada: ${id}`);
     return promotion;
   }
 
   @Delete(':id')
+  @UseGuards(AuthGuard)
   @ApiOperation({ summary: 'Desactivar una promoción (soft delete)' })
   async delete(@Param('id') id: string): Promise<{ message: string }> {
     const success = await this.promotionsService.delete(id);
     if (!success) {
-      throw new HttpException('Promoción no encontrada', HttpStatus.NOT_FOUND);
+      throw new HttpException(
+        'La promoción que intentas desactivar no existe.',
+        HttpStatus.NOT_FOUND,
+      );
     }
     this.logger.debug(`Promoción desactivada: ${id}`);
     return { message: 'Promoción desactivada exitosamente' };
   }
 
   @Post(':id/products')
+  @UseGuards(AuthGuard)
   @ApiOperation({ summary: 'Agregar productos a una promoción' })
   async addProducts(
     @Param('id') id: string,
@@ -87,13 +107,17 @@ export class PromotionsController {
   ): Promise<Promotion> {
     const promotion = await this.promotionsService.addProducts(id, body.productIds);
     if (!promotion) {
-      throw new HttpException('Promoción no encontrada', HttpStatus.NOT_FOUND);
+      throw new HttpException(
+        'La promoción no existe.',
+        HttpStatus.NOT_FOUND,
+      );
     }
     this.logger.debug(`Productos agregados a promoción ${id}`);
     return promotion;
   }
 
   @Delete(':id/products')
+  @UseGuards(AuthGuard)
   @ApiOperation({ summary: 'Remover productos de una promoción' })
   async removeProducts(
     @Param('id') id: string,
@@ -101,7 +125,10 @@ export class PromotionsController {
   ): Promise<Promotion> {
     const promotion = await this.promotionsService.removeProducts(id, body.productIds);
     if (!promotion) {
-      throw new HttpException('Promoción no encontrada', HttpStatus.NOT_FOUND);
+      throw new HttpException(
+        'La promoción no existe.',
+        HttpStatus.NOT_FOUND,
+      );
     }
     this.logger.debug(`Productos removidos de promoción ${id}`);
     return promotion;

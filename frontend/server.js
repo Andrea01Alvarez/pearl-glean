@@ -1,9 +1,9 @@
 /**
- * Servidor de desarrollo SPA para Pearl Glean
- * Sirve archivos estáticos y redirige rutas desconocidas a index.html
+ * Servidor de desarrollo para Pearl Glean
  *
  * Uso: node frontend/server.js
- * URL: http://localhost:5500/pearl-glean/
+ * Tienda:  http://localhost:5500/
+ * Admin:   http://localhost:5500/admin-login
  */
 
 const http = require('http');
@@ -12,7 +12,6 @@ const path = require('path');
 
 const PORT = 5500;
 const DIR = __dirname;
-const BASE = '/pearl-glean';
 
 const MIME_TYPES = {
   '.html': 'text/html',
@@ -28,41 +27,45 @@ const MIME_TYPES = {
   '.woff2': 'font/woff2',
 };
 
+// Páginas HTML independientes (no son rutas SPA)
+const HTML_PAGES = ['admin-login', 'admin'];
+
 const server = http.createServer((req, res) => {
   const url = req.url.split('?')[0];
 
-  // Redirigir raíz a /pearl-glean/
+  // Raíz → catalogo.html
   if (url === '/' || url === '') {
-    res.writeHead(302, { Location: `${BASE}/` });
-    res.end();
-    return;
+    return serveFile(path.join(DIR, 'catalogo.html'), res);
   }
 
-  // Solo procesar rutas que empiecen con /pearl-glean
-  if (!url.startsWith(BASE)) {
-    res.writeHead(404);
-    res.end('Not found');
-    return;
+  const clean = url.replace(/^\//, '');
+
+  // 1. Buscar archivo exacto (CSS, JS, imágenes, etc.)
+  const exactPath = path.join(DIR, clean);
+  if (fs.existsSync(exactPath) && fs.statSync(exactPath).isFile()) {
+    return serveFile(exactPath, res);
   }
 
-  // Quitar el prefijo /pearl-glean para buscar el archivo
-  const relativePath = url.substring(BASE.length) || '/';
-  const filePath = path.join(DIR, relativePath === '/' ? 'index.html' : relativePath);
-
-  // Si el archivo existe, servirlo
-  if (fs.existsSync(filePath) && fs.statSync(filePath).isFile()) {
-    const ext = path.extname(filePath);
-    const contentType = MIME_TYPES[ext] || 'application/octet-stream';
-    res.writeHead(200, { 'Content-Type': contentType });
-    fs.createReadStream(filePath).pipe(res);
-  } else {
-    // SPA fallback: servir index.html para cualquier ruta
-    res.writeHead(200, { 'Content-Type': 'text/html' });
-    fs.createReadStream(path.join(DIR, 'index.html')).pipe(res);
+  // 2. Intentar con extensión .html (ej: /admin-login → admin-login.html)
+  const withHtml = exactPath + '.html';
+  if (fs.existsSync(withHtml) && fs.statSync(withHtml).isFile()) {
+    return serveFile(withHtml, res);
   }
+
+  // 3. SPA fallback: servir catalogo.html para rutas del catálogo
+  return serveFile(path.join(DIR, 'catalogo.html'), res);
 });
 
+function serveFile(filePath, res) {
+  const ext = path.extname(filePath);
+  const contentType = MIME_TYPES[ext] || 'application/octet-stream';
+  res.writeHead(200, { 'Content-Type': contentType });
+  fs.createReadStream(filePath).pipe(res);
+}
+
 server.listen(PORT, () => {
-  console.log(`Pearl Glean frontend: http://localhost:${PORT}${BASE}/`);
-  console.log('Modo SPA activo');
+  console.log(`\n  Pearl Glean dev server\n`);
+  console.log(`  Tienda:  http://localhost:${PORT}/`);
+  console.log(`  Admin:   http://localhost:${PORT}/admin-login`);
+  console.log(`  Admin:   http://localhost:${PORT}/admin-login.html\n`);
 });
