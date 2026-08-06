@@ -43,6 +43,10 @@ export class SalesService {
       throw new NotFoundException('El producto no existe.');
     }
 
+    if (!product.isActive) {
+      throw new BadRequestException(`El producto "${product.name}" no está disponible para la venta.`);
+    }
+
     // Validar stock disponible
     const currentStock = product.stock ?? 0;
     if (dto.quantity > currentStock) {
@@ -120,8 +124,10 @@ export class SalesService {
     });
 
     if (product) {
-      product.stock = (product.stock ?? 0) + sale.quantity;
-      if (product.stock > 0) {
+      const stockBeforeRestore = product.stock ?? 0;
+      product.stock = stockBeforeRestore + sale.quantity;
+      // Solo reactivar si el producto estaba desactivado por stock agotado (stock era 0)
+      if (!product.isActive && stockBeforeRestore === 0 && product.stock > 0) {
         product.isActive = true;
       }
       await this.productRepository.save(product);

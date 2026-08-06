@@ -642,7 +642,7 @@ async function loadProducts() {
 // ============================================================================
 function renderStats() {
   const active = allProducts.filter(function (p) { return p.isActive; });
-  const inactive = allProducts.filter(function (p) { return !p.isActive; });
+  const inactive = allProducts.filter(function (p) { return !p.isActive && (p.stock === 0 || p.stock === null || p.stock === undefined); });
 
   // Card 1: Inventario disponible (suma total de stock de productos activos)
   const totalStock = active.reduce(function (sum, p) {
@@ -1314,7 +1314,7 @@ document.getElementById('product-form').addEventListener('submit', async functio
 
   if (!name) { showFieldError('product-name', 'El nombre es obligatorio.'); hasErrors = true; }
   if (!category) { showFieldError('product-category', 'Selecciona una categoría.'); hasErrors = true; }
-  if (!price) { showFieldError('product-price', 'El precio es obligatorio.'); hasErrors = true; }
+  if (!price || parseFloat(price) <= 0) { showFieldError('product-price', 'El precio debe ser mayor a 0.'); hasErrors = true; }
   if (!description) { showFieldError('product-description', 'La descripción es obligatoria.'); hasErrors = true; }
   if (!isEdit && stock === '') { showFieldError('product-stock', 'El stock es obligatorio.'); hasErrors = true; }
   if (!isEdit && !imageFile) { showFieldError('product-image', 'Debes subir al menos una imagen.'); hasErrors = true; }
@@ -2833,7 +2833,9 @@ function submitQuickSale() {
       submitBtn.textContent = 'Registrando...';
 
       try {
-        var promises = quickSaleCart.map(function (item) {
+        var results = [];
+        for (var i = 0; i < quickSaleCart.length; i++) {
+          var item = quickSaleCart[i];
           var subtotal = item.unitPrice * item.quantity;
           var total = getItemSubtotal(item);
 
@@ -2850,18 +2852,16 @@ function submitQuickSale() {
             saleDate: saleDate,
           };
 
-          return authFetch(API_URL + '/sales', {
-            method: 'POST',
-            body: JSON.stringify(saleData),
-          }).then(function (response) {
-            if (!response || !response.ok) {
-              return { success: false, product: item.productName };
-            }
-            return { success: true, product: item.productName };
-          });
-        });
-
-        var results = await Promise.all(promises);
+          try {
+            var response = await authFetch(API_URL + '/sales', {
+              method: 'POST',
+              body: JSON.stringify(saleData),
+            });
+            results.push({ success: response && response.ok, product: item.productName });
+          } catch (_) {
+            results.push({ success: false, product: item.productName });
+          }
+        }
         var failed = results.filter(function (r) { return !r.success; });
 
         // Guardar el carrito antes de cerrar para detectar agotados

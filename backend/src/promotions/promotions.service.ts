@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { In, LessThan, Repository } from 'typeorm';
 import { Promotion } from './entities/promotion.entity';
@@ -96,7 +96,14 @@ export class PromotionsService {
     }
   }
 
+  private validateDateRange(startDate?: string, endDate?: string): void {
+    if (startDate && endDate && new Date(endDate) < new Date(startDate)) {
+      throw new BadRequestException('La fecha de fin no puede ser anterior a la fecha de inicio.');
+    }
+  }
+
   async create(dto: CreatePromotionDto): Promise<Promotion> {
+    this.validateDateRange(dto.startDate, dto.endDate);
     const { productIds, ...data } = dto;
 
     const promotion = this.promotionRepository.create({
@@ -116,6 +123,8 @@ export class PromotionsService {
   }
 
   async update(id: string, dto: UpdatePromotionDto): Promise<Promotion | null> {
+    this.validateDateRange(dto.startDate, dto.endDate);
+
     const promotion = await this.promotionRepository.findOne({
       where: { id },
       relations: { products: true },
