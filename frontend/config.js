@@ -1,5 +1,5 @@
 'use strict';
 
-// URL del túnel del backend (la llena automáticamente iniciar.bat cuando usás túnel)
-// Si estás en WiFi local, dejá esto vacío ''
-var TUNNEL_BACKEND_URL = 'https://routers-laptop-anti-martial.trycloudflare.com';
+// URL del backend desplegado (Railway, Render, etc.)
+// Cambiar esto cuando el backend esté disponible en producción
+var BACKEND_URL = 'https://pearl-glean.onrender.com';

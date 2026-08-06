@@ -3,13 +3,9 @@
 // ============================================================================
 // CONFIGURACIÓN
 // ============================================================================
-const _host = window.location.hostname;
-const BACKEND =
-  (typeof TUNNEL_BACKEND_URL !== 'undefined' && TUNNEL_BACKEND_URL)
-    ? TUNNEL_BACKEND_URL
-    : _host === 'pearl-glean.onrender.com'
-      ? 'https://pearl-glean.onrender.com'
-      : `http://${_host}:3300`;
+const BACKEND = (typeof BACKEND_URL !== 'undefined' && BACKEND_URL)
+  ? BACKEND_URL
+  : '';
 
 const API_URL = `${BACKEND}/api`;
 const SESSION_TIMEOUT = 30 * 60 * 1000; // 30 minutos
